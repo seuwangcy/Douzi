@@ -366,171 +366,23 @@ function serveJSON(url, req, res) {
     return;
   }
 
-
-
-  if (p === '/api/organize' && req.method === 'POST') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      execOrganizeWithGemini().then(result => {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result));
-      }).catch(e => {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: e.message }));
-      });
+  if (p === "/api/organize" && req.method === "POST") {
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", () => {
+      import("./ai-process.mjs")
+        .then(m => m.organizeInbox({ baseDir: BASE_DIR }))
+        .then(result => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        })
+        .catch(e => {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: e.message }));
+        });
     });
     return;
   }
-
-async function execOrganizeWithGemini() {
-  const { spawnSync } = await import('node:child_process');
-
-  const inboxDir = path.join(BASE_DIR, 'inbox');
-  if (!fs.existsSync(inboxDir)) return { result: '📭 收件箱为空，无需整理' };
-  const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.md'));
-  if (files.length === 0) return { result: '📭 收件箱为空，无需整理' };
-
-  // 读取 SKILL.md
-  const skillPath = path.join(__dirname, '.agents', 'skills', 'organize-inbox', 'SKILL.md');
-  let skill = '';
-  try { skill = fs.readFileSync(skillPath, 'utf-8'); } catch {}
-
-  // 读取所有任务内容
-  const tasksText = files.map(f => {
-    const content = fs.readFileSync(path.join(inboxDir, f), 'utf-8');
-    return `\n=== 文件: ${f} ===\n${content}`;
-  }).join('\n');
-
-  const instructions = skill
-    ? `请严格按照以下 SKILL.md 规则整理任务：\n${skill}\n\n`
-    : '';
-
-  const prompt = `${instructions}待整理的任务内容：\n\n${tasksText}\n\n请分析每个任务，输出整理结果。\n\n**严格只输出一个 JSON 数组，不要任何其他文字。** 格式：
-[
-  {"file":"原文件名.md","action":"moved|updated|skipped","target_dir":"目标列目录名","priority":"P0|P1|P2|P3","title":"精炼标题","tags":["标签1"],"reason":"整理理由"},
-  ...
-]`;
-
-  console.log('🤖 调用 Gemini AI 整理中...');
-
-  const result = spawnSync('gemini', [
-    '-p', prompt,
-    '--yolo',
-    '--output-format=json'
-  ], {
-    encoding: 'utf-8',
-    timeout: 180000,
-    maxBuffer: 50 * 1024 * 1024,
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-
-  const rawOutput = (result.stdout || '').trim();
-  if (!rawOutput) {
-    if (result.error) throw new Error('Gemini 执行失败: ' + result.error.message);
-    throw new Error('Gemini 返回空输出');
-  }
-
-  // Gemini --output-format=json 返回的是一个 JSON 对象，其中 response 字段包含 AI 回复
-  let parsed;
-  try {
-    parsed = JSON.parse(rawOutput);
-  } catch {
-    return { result: '⚠️ Gemini 返回格式异常:\n' + rawOutput.slice(0, 300) };
-  }
-
-  // 提取 AI 回复内容
-  const aiReply = parsed.response || '';
-  if (!aiReply.trim()) {
-    return { result: '⚠️ Gemini 未返回内容' };
-  }
-
-  // 从 AI 回复中提取 JSON 数组（可能包裹在 markdown 代码块中）
-  let cleanReply = aiReply.replace(/```(?:json)?\s*\n/g, '').replace(/\n```\s*$/g, '');
-  cleanReply = cleanReply.trim();
-
-  // 找第一个 [ 和匹配的 ] （处理嵌套括号）
-  let actions = null;
-  const startIdx2 = cleanReply.indexOf('[');
-  if (startIdx2 !== -1) {
-    let depth = 0;
-    let endIdx2 = -1;
-    let inStr = false;
-    let escape = false;
-    for (let i = startIdx2; i < cleanReply.length; i++) {
-      const ch = cleanReply[i];
-      if (escape) { escape = false; continue; }
-      if (ch === '\\') { escape = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === '[') depth++;
-      else if (ch === ']') depth--;
-      if (depth === 0) { endIdx2 = i; break; }
-    }
-    if (endIdx2 !== -1) {
-      try { actions = JSON.parse(cleanReply.slice(startIdx2, endIdx2 + 1)); }
-      catch { actions = null; }
-    }
-  }
-
-  if (!actions || !Array.isArray(actions)) {
-    return { result: '⚠️ AI 回复中未找到有效 JSON 数组:\n' + aiReply.slice(0, 300) };
-  }
-
-
-  // 执行整理
-  const summary = { total: files.length, moved: 0, updated: 0, skipped: 0, details: [] };
-
-  for (const action of actions) {
-    if (!action.file || action.file === 'summary') continue;
-
-    if (action.action === 'skipped') {
-      summary.skipped++;
-      summary.details.push(`⏭ ${action.file}: 已规范，跳过`);
-      continue;
-    }
-
-    const fp = path.join(inboxDir, action.file);
-    if (!fs.existsSync(fp)) continue;
-
-    let content = fs.readFileSync(fp, 'utf-8');
-    const today = new Date().toISOString().slice(0, 10);
-    const targetDir = action.target_dir || 'inbox';
-    const priority = action.priority || 'P3';
-    const title = action.title || '';
-    const tags = action.tags || [];
-
-    if (title) content = content.replace(/^title:\s*.+/m, `title: "${title}"`);
-    content = content.replace(/^status:\s*.+/m, `status: "${targetDir}"`);
-    content = content.replace(/^priority:\s*.+/m, `priority: "${priority}"`);
-    if (content.match(/^updated:\s/m)) {
-      content = content.replace(/^updated:\s*.+/m, `updated: ${today}`);
-    } else {
-      content = content.replace(/^created:\s*.+/m, m => m + `\nupdated: ${today}`);
-    }
-    if (tags.length > 0) {
-      const tagStr = '[' + tags.map(t => `"${t}"`).join(', ') + ']';
-      if (content.match(/^tags:\s/m)) {
-        content = content.replace(/^tags:\s*.+/m, `tags: ${tagStr}`);
-      } else {
-        content = content.replace(/^created:\s*.+/m, m => m + `\ntags: ${tagStr}`);
-      }
-    }
-
-    const newFp = path.join(BASE_DIR, targetDir, action.file);
-    ensureDir(path.dirname(newFp));
-    fs.writeFileSync(newFp, content, 'utf-8');
-    if (newFp !== fp) fs.unlinkSync(fp);
-
-    if (targetDir !== 'inbox') summary.moved++;
-    else summary.updated++;
-    summary.details.push(`✅ ${action.file} → ${targetDir} [${priority}] ${action.reason || ''}`);
-  }
-
-  return {
-    result: `🤖 Gemini 已整理 ${summary.total} 项：\n` + summary.details.join('\n')
-  };
-}
 
 
   if (p === '/api/delete' && req.method === 'POST') {

@@ -37,11 +37,11 @@ flowchart LR
 - 📥 **自动分类** — AI 判断每条内容是 2 分钟能做完、需要等待他人、还是多步骤项目
 - 🏷️ **自动打标** — 根据内容语义自动添加优先级和标签
 - 📋 **生成下一步行动** — 将模糊想法拆解为具体可执行任务
-- 🔄 **一键整理** — 运行 `ai-process.mjs`，5 分钟搞定过去需要 30 分钟的手动整理
+- 🔄 **一键整理** — 点击看板上的「✨ 一键整理」按钮，或运行 `ai-process.mjs`，5 分钟搞定过去需要 30 分钟的手动整理
 
 ```bash
-# 用法：将 AI 整理结果导入
-cat > inbox/2026-04-29-新想法.md << 'EOF'
+# 用法：先往里扔想法
+cat > knowledge-base/gtd/inbox/2026-04-29-新想法.md << 'EOF'
 ---
 title: "调研竞品方案"
 status: "inbox"
@@ -54,8 +54,10 @@ tags: ["调研"]
 需要比较 3 个竞品...
 EOF
 
-# 然后让 AI 帮你分流
-node ai-process.mjs --file inbox/2026-04-29-新想法.md
+# 方法 1：终端直接运行整理
+node ai-process.mjs --file 2026-04-29-新想法.md
+
+# 方法 2：Web 看板中点击「✨ 一键整理」按钮
 ```
 
 ### 3. 🔗 Obsidian / Foam 无缝衔接
@@ -107,6 +109,7 @@ open http://localhost:5000
 - 📦 一键归档 — 已完成项批量归档
 - ✏️ 在线编辑 — 弹窗内直接编辑 Markdown
 - 🏷️ 标签筛选 — 按标签过滤视图
+- ✨ 一键整理 — 调用 Gemini AI 自动分类 Inbox
 - 📱 移动友好 — 手机浏览器随时查看
 
 ---
@@ -116,6 +119,7 @@ open http://localhost:5000
 ### 前提条件
 
 - Node.js 18+ （仅此而已，零外部依赖）
+- Gemini CLI 工具（用于 AI 整理功能）
 
 ### 安装与启动
 
@@ -145,7 +149,7 @@ open http://localhost:5000
 ```
 douzi/
 ├── server.mjs              # 零依赖 Web 看板服务器
-├── ai-process.mjs          # AI 辅助整理脚本
+├── ai-process.mjs          # AI 辅助整理脚本（支持 CLI + 模块导入）
 ├── knowledge-base/
 │   └── gtd/
 │       ├── _README.md      # GTD 使用说明
@@ -168,9 +172,9 @@ douzi/
 ## 💡 使用场景
 
 ### 场景 1：通勤路上的灵感
-1. 手机上打开浏览器 → 访问 `localhost:5000`（或 NAS 部署）
-2. 在 Inbox 栏点击"+"，输入想法
-3. 晚上回家运行 AI 整理，自动分类到对应目录
+1. 手机上打开浏览器 → 访问 NAS 或电脑部署的看板地址
+2. 在 Inbox 栏点击「+」，输入想法
+3. 回到家后点击「✨ 一键整理」，AI 自动分类到对应目录
 
 ### 场景 2：项目管理
 1. 在 `next_actions/` 中查看今日待办
@@ -205,19 +209,44 @@ services:
     volumes:
       - ./knowledge-base:/app/knowledge-base
       - ./server.mjs:/app/server.mjs
+      - ./ai-process.mjs:/app/ai-process.mjs
     command: node server.mjs
     ports:
       - "5000:5000"
 ```
 
-### AI 批量整理工作流
+### AI 整理工作流
 
+**方式一：Web 看板一键触发**
+打开看板 → 点击右上角「✨ 一键整理」→ AI 自动处理 → 弹窗显示结果 → 页面自动刷新
+
+**方式二：命令行直接运行**
 ```bash
 # 查看 inbox 中有多少未处理项
 ls knowledge-base/gtd/inbox/ | wc -l
 
-# 用 AI 自动分流（需要配置 API Key）
+# 全部整理
 node ai-process.mjs
+
+# 只整理指定文件
+node ai-process.mjs --file 2026-04-29-新想法.md
+
+# 试运行（预览不实际移动）
+node ai-process.mjs --dry-run
+```
+
+**方式三：代码中导入使用**
+```javascript
+import { organizeInbox } from './ai-process.mjs';
+const { result } = await organizeInbox({ dryRun: false, baseDir: './knowledge-base/gtd' });
+console.log(result);
+```
+
+**方式四：定时自动整理**
+```bash
+# 加入 cron，每天 20:00 自动执行
+crontab -e
+0 20 * * * cd /path/to/douzi && node ai-process.mjs
 ```
 
 ---

@@ -31,7 +31,7 @@ const COLUMNS = {
 
 ## 扩展目录结构
 
-### 添加 "学习" 列
+### 添加新列
 
 ```javascript
 const COLUMNS = {
@@ -40,14 +40,19 @@ const COLUMNS = {
 };
 ```
 
-然后在 `knowledge-base/gtd/` 下创建 `learnings/` 文件夹。
+然后在 `knowledge-base/gtd/` 下创建 `learnings/` 文件夹，并确保 `ai-process.mjs` 中的目标目录映射也包含该目录。
 
 ## 配置端口
 
 ```bash
 # 默认是 5000
 # 如需修改，编辑 server.mjs 底部:
-const PORT = 5000;  # 改为你想要的端口
+const PORT = 5000;
+```
+
+或直接指定环境变量启动：
+```bash
+PORT=8080 node server.mjs
 ```
 
 ## 添加自定义模板
@@ -59,7 +64,7 @@ const PORT = 5000;  # 改为你想要的端口
 title: "模板名称"
 status: "next_actions"
 priority: "P3"
-created: {{date}}
+created: 2026-04-29
 tags: []
 ---
 
@@ -72,32 +77,6 @@ tags: []
 
 ## 参考
 -
-```
-
-## Docker 部署
-
-```yaml
-# docker-compose.yml
-version: "3"
-services:
-  douzi:
-    build: .
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./knowledge-base:/app/knowledge-base
-```
-
-```dockerfile
-# Dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY server.mjs ./
-COPY ai-process.mjs ./
-COPY knowledge-base/ ./knowledge-base/
-EXPOSE 5000
-CMD ["node", "server.mjs"]
 ```
 
 ## Git 自动备份

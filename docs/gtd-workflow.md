@@ -55,10 +55,8 @@ TASK
 
 **AI 帮你做这一步：**
 
-```bash
-# AI 自动分析 Inbox 并分类
-node ai-process.mjs
-```
+- 点击看板右上角的 **「✨ 一键整理」** 按钮
+- 或在终端运行 `node ai-process.mjs`
 
 ### 3. 🏗️ 组织 (Organize)
 
@@ -82,7 +80,7 @@ node ai-process.mjs
 
 ### 4. 👀 回顾 (Reflect)
 
-**每日回顾模板：** 使用 `docs/templates/daily-review.md`
+**每日回顾：** 查看 `daily_review/` 目录中的复盘笔记，或使用 Web 看板的「每日回顾」标签页。
 
 **回顾清单：**
 
@@ -92,11 +90,6 @@ node ai-process.mjs
 - [ ] 回顾 Projects 进度
 - [ ] 查看 Done，将超过 7 天的归档
 - [ ] 写今日复盘
-
-```bash
-# 一键启动回顾工作流
-node review.mjs
-```
 
 ### 5. ⚡ 执行 (Engage)
 
@@ -112,7 +105,7 @@ node review.mjs
 ## 任务生命周期
 
 ```
-Inbox → (厘清) → Next Actions / Waiting / Projects / Reference → Done → Archived
+Inbox → (厘清/AI整理) → Next Actions / Waiting / Projects / Reference → Done → Archived
 ```
 
 ## 命名规范

@@ -8,197 +8,222 @@
  *   node ai-process.mjs --dry-run    试运行，不实际移动文件
  *   node ai-process.mjs --file X.md  只处理指定文件
  *
- * 需要设置环境变量:
- *   AI_PROVIDER=openai|google|anthropic
- *   API_KEY=your-key
- *   AI_MODEL=your-model (可选)
- *
- * 注意: 本脚本是 AI 整理的接口骨架，需接入具体的 LLM API。
- *       当前版本使用本地启发式分类作为默认 fallback。
+ * 也可以从其它模块导入使用:
+ *   import { organizeInbox } from "./ai-process.mjs";
+ *   const result = await organizeInbox({ dryRun: false, baseDir });
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE_DIR = path.join(__dirname, 'knowledge-base', 'gtd');
-const INBOX_DIR = path.join(BASE_DIR, 'inbox');
+const DEFAULT_BASE_DIR = path.join(__dirname, "knowledge-base", "gtd");
 
-// ---- Classification --------------------------------------------------------
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
-const KEYWORDS = {
-  waiting_for: ['等', '等待', '催', '同事', 'review', '审批', '回复', '对方', 'design'],
-  project: ['项目', '规划', '体系', '搭建', '方案', '重构', '迁移', '升级', 'q2', '季度'],
-  reference: ['笔记', '学习', '资料', '整理', '指南', '教程', '研究', '调研'],
-  done: ['完成', 'done', '已做'],
-};
+async function callGemini(tasksText, skill = "") {
+  const { spawnSync } = await import("node:child_process");
 
-function classifyByContent(content) {
-  const lower = content.toLowerCase();
+  const instructions = skill
+    ? `请严格按照以下 SKILL.md 规则整理任务：\n\n${skill}\n\n`
+    : "";
 
-  for (const [category, kws] of Object.entries(KEYWORDS)) {
-    for (const kw of kws) {
-      if (lower.includes(kw)) return category;
+  const prompt = `${instructions}待整理的任务内容：\n\n${tasksText}\n\n请分析每个任务，输出整理结果。\n\n**严格只输出一个 JSON 数组，不要任何其他文字。** 格式：\n[
+  {"file":"原文件名.md","action":"moved|updated|skipped","target_dir":"目标列目录名","priority":"P0|P1|P2|P3","title":"精炼标题","tags":["标签1"],"reason":"整理理由"},
+  ...
+]`;
+
+  console.log("🤖 调用 Gemini AI 整理中...");
+
+  const result = spawnSync("gemini", [
+    "-p", prompt,
+    "--yolo",
+    "--output-format=json"
+  ], {
+    encoding: "utf-8",
+    timeout: 180000,
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+
+  const rawOutput = (result.stdout || "").trim();
+  if (!rawOutput) {
+    if (result.error) throw new Error("Gemini 执行失败: " + result.error.message);
+    throw new Error("Gemini 返回空输出");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawOutput);
+  } catch {
+    return { rawOutput, actions: null, error: "Gemini 返回格式异常" };
+  }
+
+  const aiReply = parsed.response || "";
+  if (!aiReply.trim()) {
+    return { rawOutput, actions: null, error: "Gemini 未返回内容" };
+  }
+
+  let cleanReply = aiReply.replace(/```(?:json)?\s*\n/g, "").replace(/\n```\s*$/g, "");
+  cleanReply = cleanReply.trim();
+
+  let actions = null;
+  const startIdx = cleanReply.indexOf("[");
+  if (startIdx !== -1) {
+    let depth = 0;
+    let endIdx = -1;
+    let inStr = false;
+    let escape = false;
+    for (let i = startIdx; i < cleanReply.length; i++) {
+      const ch = cleanReply[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "[") depth++;
+      else if (ch === "]") depth--;
+      if (depth === 0) { endIdx = i; break; }
     }
-  }
-  return 'next_actions';
-}
-
-function assignPriority(content) {
-  const lower = content.toLowerCase();
-  if (/紧急|urgent|urgent|火烧眉毛|p0|blocker/i.test(lower)) return 'P0';
-  if (/重要|important|关键|必须|deadline/i.test(lower)) return 'P1';
-  if (/一般|普通|normal|有空/i.test(lower)) return 'P3';
-  return 'P2';
-}
-
-function extractTags(content) {
-  const tags = [];
-  const tagMap = {
-    'AI': /AI|智能|模型|gpt|gemini/i,
-    '技术': /技术|代码|开发|bug|fix|server|api/i,
-    '调研': /调研|研究|竞品|方案/i,
-    '学习': /学习|笔记|教程|文档/i,
-    '项目': /项目|规划|目标|指标/i,
-    '设计': /设计|ui|ux|交互|视觉/i,
-    '等待': /等|催|审批|回复/i,
-  };
-  for (const [tag, re] of Object.entries(tagMap)) {
-    if (re.test(content)) tags.push(tag);
-  }
-  return tags;
-}
-
-// ---- API Stub (接入真实 LLM) ------------------------------------------------
-
-async function aiClassify(content) {
-  const provider = process.env.AI_PROVIDER || 'local';
-
-  if (provider === 'openai') {
-    // TODO: OpenAI API 接入
-    console.warn('⚠️ OpenAI API 尚未接入，使用本地启发式分类');
-  } else if (provider === 'google') {
-    // TODO: Google Gemini API 接入
-    console.warn('⚠️ Gemini API 尚未接入，使用本地启发式分类');
-  } else if (provider === 'anthropic') {
-    // TODO: Claude API 接入
-    console.warn('⚠️ Claude API 尚未接入，使用本地启发式分类');
-  }
-
-  const category = classifyByContent(content);
-  const priority = assignPriority(content);
-  const tags = extractTags(content);
-
-  const dirMap = {
-    waiting_for: 'waiting_for',
-    project: 'projects',
-    reference: 'reference',
-    done: 'done',
-    next_actions: 'next_actions',
-  };
-
-  return {
-    targetDir: dirMap[category] || 'next_actions',
-    priority,
-    tags,
-    reason: `本地分类: ${category}`,
-  };
-}
-
-// ---- Processing ------------------------------------------------------------
-
-function readFileMeta(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const title = path.basename(filePath, '.md').replace(/^\d{4}-\d{2}-\d{2}[-_]\d{4}-?/, '').replace(/[-_]/g, ' ');
-  return { content, title, filepath: filePath };
-}
-
-function updateFileMeta(item, result) {
-  const { content, title, filepath } = item;
-  const today = new Date().toISOString().slice(0, 10);
-
-  let updated = content;
-  // Update status field in front matter
-  updated = updated.replace(/^(status:\s*).+/m, `$1"${result.targetDir}"`);
-  updated = updated.replace(/^(priority:\s*).+/m, `$1"${result.priority}"`);
-  updated = updated.replace(/^(updated:\s*).+/m, `$1"${today}"`);
-
-  if (result.tags.length > 0) {
-    const tagStr = '[' + result.tags.map(t => `"${t}"`).join(', ') + ']';
-    if (updated.match(/^tags:/m)) {
-      updated = updated.replace(/^(tags:\s*).+/m, `$1${tagStr}`);
-    } else {
-      updated = updated.replace(/^(created:\s*).+/m, `$1${today}\ntags: ${tagStr}`);
+    if (endIdx !== -1) {
+      try { actions = JSON.parse(cleanReply.slice(startIdx, endIdx + 1)); }
+      catch { actions = null; }
     }
   }
 
-  fs.writeFileSync(filepath, updated, 'utf-8');
+  if (!actions || !Array.isArray(actions)) {
+    return { rawOutput, actions: null, error: "AI 回复中未找到有效 JSON 数组" };
+  }
+
+  return { rawOutput, actions, error: null };
 }
 
-function moveFile(filepath, targetDir) {
-  const fileName = path.basename(filepath);
-  const targetPath = path.join(BASE_DIR, targetDir, fileName);
-  fs.renameSync(filepath, targetPath);
-  return targetPath;
-}
+function applyActions(actions, inboxDir, baseDir, dryRun = false) {
+  const summary = { total: actions.length, moved: 0, updated: 0, skipped: 0, details: [] };
 
-async function processInbox(dryRun, targetFile) {
-  if (!fs.existsSync(INBOX_DIR)) {
-    console.log('📥 Inbox 目录不存在，跳过');
-    return;
-  }
+  for (const action of actions) {
+    if (!action.file || action.file === "summary") continue;
 
-  const files = fs.readdirSync(INBOX_DIR).filter(f => f.endsWith('.md'));
-
-  if (targetFile) {
-    if (!files.includes(targetFile)) {
-      console.log(`❌ 文件 ${targetFile} 不存在于 inbox`);
-      process.exit(1);
-    }
-  }
-
-  const toProcess = targetFile ? files.filter(f => f === targetFile) : files;
-
-  if (toProcess.length === 0) {
-    console.log('✨ Inbox 为空，所有任务已整理完毕！');
-    return;
-  }
-
-  console.log(`🤖 开始处理 ${toProcess.length} 项...\n`);
-
-  for (const f of toProcess) {
-    const fp = path.join(INBOX_DIR, f);
-    const item = readFileMeta(fp);
-
-    const result = await aiClassify(item.content);
-
-    if (dryRun) {
-      console.log(`  [DRY RUN] ${f}`);
-      console.log(`    → ${result.targetDir} [${result.priority}] ${result.tags.join(', ')}`);
-      console.log(`    原因: ${result.reason}`);
+    if (action.action === "skipped") {
+      summary.skipped++;
+      summary.details.push(`⏭ ${action.file}: 已规范，跳过`);
       continue;
     }
 
-    // Update front matter
-    updateFileMeta(item, result);
+    const fp = path.join(inboxDir, action.file);
+    if (!fs.existsSync(fp)) {
+      summary.details.push(`❌ ${action.file}: 文件不存在`);
+      continue;
+    }
 
-    // Move file to target directory
-    const newPath = moveFile(fp, result.targetDir);
-    const newName = path.basename(newPath);
+    let content = fs.readFileSync(fp, "utf-8");
+    const today = new Date().toISOString().slice(0, 10);
+    const targetDir = action.target_dir || "inbox";
+    const priority = action.priority || "P3";
+    const title = action.title || "";
+    const tags = action.tags || [];
 
-    console.log(`  ✅ ${f}`);
-    console.log(`    → ${newName} [${result.priority}] ${result.tags.join(', ')}`);
+    if (title) content = content.replace(/^title:\s*.+/m, `title: "${title}"`);
+    content = content.replace(/^status:\s*.+/m, `status: "${targetDir}"`);
+    content = content.replace(/^priority:\s*.+/m, `priority: "${priority}"`);
+    if (content.match(/^updated:\s/m)) {
+      content = content.replace(/^updated:\s*.+/m, `updated: ${today}`);
+    } else {
+      content = content.replace(/^created:\s*.+/m, m => m + `\nupdated: ${today}`);
+    }
+    if (tags.length > 0) {
+      const tagStr = "[" + tags.map(t => `"${t}"`).join(", ") + "]";
+      if (content.match(/^tags:\s/m)) {
+        content = content.replace(/^tags:\s*.+/m, `tags: ${tagStr}`);
+      } else {
+        content = content.replace(/^created:\s*.+/m, m => m + `\ntags: ${tagStr}`);
+      }
+    }
+
+    const newFp = path.join(baseDir, targetDir, action.file);
+    ensureDir(path.dirname(newFp));
+    if (!dryRun) {
+      fs.writeFileSync(newFp, content, "utf-8");
+      if (newFp !== fp) fs.unlinkSync(fp);
+    }
+
+    if (targetDir !== "inbox") summary.moved++;
+    else summary.updated++;
+    const dryTag = dryRun ? " [DRY RUN]" : "";
+    summary.details.push(`✅${dryTag} ${action.file} → ${targetDir} [${priority}] ${action.reason || ""}`);
   }
 
-  console.log(`\n🎉 ${dryRun ? '试运行完成' : '整理完成'}！共处理 ${toProcess.length} 项。`);
+  return summary;
 }
 
-// ---- CLI --------------------------------------------------------------------
+/**
+ * 组织（整理）收件箱中的任务
+ *
+ * @param {Object} options
+ * @param {boolean} options.dryRun      是否仅试运行，不实际移动文件
+ * @param {string|null} options.targetFile  只处理该文件（相对于 inbox）
+ * @param {string} options.baseDir      GTD 根目录，默认 knowledge-base/gtd
+ * @returns {{result: string, summary: Object}}
+ */
+export async function organizeInbox({ dryRun = false, targetFile = null, baseDir = DEFAULT_BASE_DIR } = {}) {
+  const inboxDir = path.join(baseDir, "inbox");
+  if (!fs.existsSync(inboxDir)) {
+    return { result: "📭 收件箱为空，无需整理", summary: { total: 0, moved: 0, updated: 0, skipped: 0, details: [] } };
+  }
 
-const args = process.argv.slice(2);
-const dryRun = args.includes('--dry-run');
-const fileIdx = args.indexOf('--file');
-const targetFile = fileIdx !== -1 ? args[fileIdx + 1] : null;
+  let files = fs.readdirSync(inboxDir).filter(f => f.endsWith(".md"));
+  if (files.length === 0) {
+    return { result: "📭 收件箱为空，无需整理", summary: { total: 0, moved: 0, updated: 0, skipped: 0, details: [] } };
+  }
 
-processInbox(dryRun, targetFile);
+  if (targetFile) {
+    if (!files.includes(targetFile)) {
+      throw new Error(`文件 ${targetFile} 不存在于 inbox`);
+    }
+    files = [targetFile];
+  }
+
+  const skillPath = path.join(__dirname, ".agents", "skills", "organize-inbox", "SKILL.md");
+  let skill = "";
+  try { skill = fs.readFileSync(skillPath, "utf-8"); } catch {}
+
+  const tasksText = files.map(f => {
+    const content = fs.readFileSync(path.join(inboxDir, f), "utf-8");
+    return `\n=== 文件: ${f} ===\n${content}`;
+  }).join("\n");
+
+  const { actions, error } = await callGemini(tasksText, skill);
+
+  if (error) {
+    throw new Error(`${error}`);
+  }
+
+  const summary = applyActions(actions, inboxDir, baseDir, dryRun);
+  const modeLabel = dryRun ? "[DRY RUN] " : "";
+  return {
+    result: `🤖 ${modeLabel}Gemini 已整理 ${summary.moved + summary.updated + summary.skipped} 项：\n` + summary.details.join("\n"),
+    summary
+  };
+}
+
+
+// ---- CLI 入口 --------------------------------------------------------------
+
+async function main() {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes("--dry-run");
+  const fileIdx = args.indexOf("--file");
+  const targetFile = fileIdx !== -1 ? args[fileIdx + 1] : null;
+
+  try {
+    const { result } = await organizeInbox({ dryRun, targetFile });
+    console.log(result);
+  } catch (e) {
+    console.error("❌ 整理失败:", e.message);
+    process.exit(1);
+  }
+}
+
+main();
