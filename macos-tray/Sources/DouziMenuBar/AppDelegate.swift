@@ -20,19 +20,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let fm = FileManager.default
         // 从可执行文件所在目录推导 Douzi 项目根目录
         // 可执行文件位于 ~/.douzi/macos-tray/.build/debug/DouziMenuBar
-        // 使用 Bundle.main.executablePath 而非 ProcessInfo，因为 Launchpad 启动时
-        // arguments.first 是 DouziLauncher 脚本路径，而非实际可执行文件路径
+        // 或 ~/Applications/Douzi.app/Contents/MacOS/DouziLauncher
         let execPath = Bundle.main.executablePath ?? ""
         let execURL = URL(fileURLWithPath: execPath)
-        let macosTrayDir = execURL.deletingLastPathComponent().path // .build/debug
-        let buildDir = (macosTrayDir as NSString).deletingLastPathComponent // .build
-        let projectDirCandidate = (buildDir as NSString).deletingLastPathComponent // macos-tray
-        let douziDir = (projectDirCandidate as NSString).deletingLastPathComponent // ~/.douzi
+        let execDir = execURL.deletingLastPathComponent().path
 
-        if fm.fileExists(atPath: douziDir + "/server.mjs") {
-            self.projectDir = douziDir
+        var projectDirCandidate: String
+        if execDir.hasSuffix("/Contents/MacOS") {
+            // Launchpad 启动: DouziLauncher 脚本
+            let homeDir = NSHomeDirectory()
+            projectDirCandidate = homeDir + "/.douzi"
         } else {
-            // 回退到当前工作目录（终端启动时有效）
+            // 直接运行: DouziMenuBar 二进制，或通过 DouziLauncher -> exec 间接运行
+            // execPath 可能是 ~/.douzi/macos-tray/.build/debug/DouziMenuBar
+            // 也可能是 ~/Applications/Douzi.app/.../DouziLauncher（但实际应该是前者）
+            let macosTrayDir = (execDir as NSString).deletingLastPathComponent // .build/debug -> .build
+            let buildDir = (macosTrayDir as NSString).deletingLastPathComponent // .build -> macos-tray
+            let parentDir = (buildDir as NSString).deletingLastPathComponent // macos-tray -> ~/.douzi
+
+            if fm.fileExists(atPath: parentDir + "/server.mjs") {
+                projectDirCandidate = parentDir
+            } else {
+                // Fallback: 相对路径推导（用于某些间接调用场景）
+                let step1 = (execDir as NSString).deletingLastPathComponent
+                let step2 = (step1 as NSString).deletingLastPathComponent
+                let step3 = (step2 as NSString).deletingLastPathComponent
+                let step4 = (step3 as NSString).deletingLastPathComponent
+                projectDirCandidate = step4
+            }
+        }
+
+        if fm.fileExists(atPath: projectDirCandidate + "/server.mjs") {
+            self.projectDir = projectDirCandidate
+        } else {
+            // 回退到当前工作目录
             self.projectDir = fm.currentDirectoryPath
         }
         self.baseDir = self.projectDir + "/knowledge-base/gtd"
@@ -55,6 +76,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             btn.image = NSImage(systemSymbolName: "circle.circle.fill",
                                 accessibilityDescription: "Douzi")
             btn.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        } else {
+            btn.title = "⦿"
         }
         btn.imageScaling = .scaleProportionallyDown
         btn.imagePosition = .imageOnly
@@ -125,7 +148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !isRunning else { return }
 
         let fm = FileManager.default
-        let nodeBin = which("node") ?? "/usr/local/bin/node"
+        let nodeBin = findNode()
         let serverScript = projectDir + "/server.mjs"
 
         guard fm.fileExists(atPath: serverScript) else {
@@ -172,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             isRunning = true
             updateStatusUI()
         } catch {
-            showAlert(title: "启动失败", message: error.localizedDescription)
+            showAlert(title: "启动失败", message: "无法启动 Node: \(error.localizedDescription)\n\nnodeBin=\(nodeBin)\nserverScript=\(serverScript)\nprojectDir=\(projectDir)")
         }
     }
 
@@ -363,6 +386,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             return nil
         }
+    }
+
+    private func findNode() -> String {
+        // 1. Check environment variable set by launcher script (most reliable for GUI apps)
+        if let envPath = ProcessInfo.processInfo.environment["DOUZI_NODE_PATH"],
+           FileManager.default.fileExists(atPath: envPath) {
+            return envPath
+        }
+
+        // 2. Try common node locations
+        let nodePaths = [
+            "/opt/homebrew/bin/node",     // macOS ARM64 Homebrew
+            "/usr/local/bin/node",         // macOS Intel Homebrew
+            "/opt/local/bin/node",         // macPorts
+            "/usr/bin/node",               // system node
+        ]
+        let fm = FileManager.default
+        for path in nodePaths {
+            if fm.fileExists(atPath: path) {
+                return path
+            }
+        }
+
+        // 3. Fallback to which (works when launched from terminal with proper PATH)
+        let found = which("node")
+        if let found = found, !found.isEmpty {
+            return found
+        }
+
+        // 4. Scan nvm versions as last resort
+        let nvmBase = NSHomeDirectory() + "/.nvm/versions/node"
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: nvmBase) {
+            for version in contents.sorted().reversed() {
+                let candidate = nvmBase + "/" + version + "/bin/node"
+                if fm.fileExists(atPath: candidate) {
+                    return candidate
+                }
+            }
+        }
+        return "/opt/homebrew/bin/node"
     }
 
     private func showAlert(title: String, message: String) {

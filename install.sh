@@ -205,9 +205,15 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Launcher script
+# Launcher script - uses login shell to locate node, then execs the app
 cat > "$APP_BUNDLE/Contents/MacOS/DouziLauncher" << 'LAUNCHSCRIPT'
 #!/bin/bash
+# Get node path via login shell (sources .zshrc/.bashrc to setup nvm/path)
+NODE_PATH=$(bash -l -c 'which node' 2>/dev/null)
+# Export node path so the app can use it
+if [ -n "$NODE_PATH" ]; then
+    export DOUZI_NODE_PATH="$NODE_PATH"
+fi
 exec "${HOME}/.douzi/macos-tray/.build/debug/DouziMenuBar"
 LAUNCHSCRIPT
 chmod +x "$APP_BUNDLE/Contents/MacOS/DouziLauncher"
