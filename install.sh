@@ -192,6 +192,10 @@ APP_BUNDLE="$APP_DIR/Douzi.app"
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
+# Copy custom app icon for Launchpad
+if [ -f "$INSTALL_DIR/macos-tray/Resources/AppIcon.icns" ]; then
+    cp "$INSTALL_DIR/macos-tray/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+fi
 
 # Info.plist
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
@@ -213,6 +217,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>1.0.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
     <key>LSBackgroundOnly</key>
     <true/>
     <key>LSUIElement</key>
