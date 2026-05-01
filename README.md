@@ -121,11 +121,29 @@ open http://localhost:5000
 - Node.js 18+ （仅此而已，零外部依赖）
 - Gemini CLI 工具（用于 AI 整理功能）
 
-### 安装与启动
+### 方式一：一键安装（推荐 macOS）
+
+安装 macOS 菜单栏应用 + 命令行工具，之后随时通过 Launchpad 或终端启动：
+
+```bash
+# 一键安装
+curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash
+
+# 启动（任选一种）
+douzi              # 命令行
+open -a Douzi      # Launchpad / 应用文件夹
+```
+
+安装后，Douzi 会：
+- 常驻状态栏（⦿ 图标）
+- 自动管理 Node.js 服务
+- 支持 ⌘N 快速添加待办、⌘O 打开看板
+
+### 方式二：手动启动（适合浏览器使用）
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/your-username/douzi.git
+git clone https://github.com/seuwangcy/Douzi.git
 cd douzi
 
 # 2. 启动看板（零依赖）
@@ -144,6 +162,36 @@ open http://localhost:5000
 
 ---
 
+
+---
+
+## 🍎 macOS 菜单栏应用
+
+除了浏览器访问，Douzi 还提供了原生 macOS 菜单栏应用，常驻系统托盘，一键管理看板服务。
+
+### 功能
+
+| 菜单项 | 快捷键 | 作用 |
+|--------|--------|------|
+| ✨ 快速添加待办 | ⌘N | 弹出 SwiftUI 窗口，输入内容直接写入 Inbox |
+| 🌐 打开看板 | ⌘O | 自动启动服务（如未运行），浏览器打开 localhost:5000 |
+| 🧠 一键整理 Inbox | — | 调用 AI 自动分类 Inbox 中的待办 |
+| 服务状态 | — | 实时显示 Node.js 服务是否运行 |
+| 🔄 重启服务 | ⌘R | 终止并重新启动 `node server.mjs` |
+| 🛑 停止服务 | — | 终止 Node.js 进程 |
+| 退出 Douzi | ⌘Q | 停止服务并退出菜单栏应用 |
+
+### 编译运行
+
+```bash
+cd macos-tray
+swift build
+./.build/debug/DouziMenuBar
+```
+
+应用启动后会自动检测并启动 `node server.mjs`（如尚未运行），状态栏出现 `⦿` 图标，点击即可展开菜单。
+
+> 详细文档见 [docs/macos-menu-bar.md](docs/macos-menu-bar.md)
 ## 📂 目录结构
 
 ```
@@ -162,6 +210,9 @@ douzi/
 │       ├── archived/       # 📦 已归档 - 长期保存的完成项
 │       ├── reference/      # 📚 知识参考 - 文献笔记、资料
 │       └── daily_review/   # 📝 每日回顾 - 日/周复盘
+├── macos-tray/            # 🍎 macOS 菜单栏应用
+│   ├── Package.swift
+│   └── Sources/DouziMenuBar/
 ├── docs/                   # 📖 项目文档
 ├── LICENSE                 # MIT License
 └── .gitignore
@@ -256,6 +307,7 @@ crontab -e
 - [GTD 工作流指南](docs/gtd-workflow.md)
 - [AI 辅助整理配置](docs/ai-setup.md)
 - [Obsidian / Foam 集成](docs/obsidian-integration.md)
+- [macOS 菜单栏应用](docs/macos-menu-bar.md)
 - [自定义与扩展](docs/customization.md)
 
 ---

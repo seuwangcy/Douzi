@@ -1,25 +1,22 @@
-# OS files
-.DS_Store
-Thumbs.db
+# 运行时日志
+.douzi-server.log
 
-# Editor files
-.vscode/
-.idea/
+# Swift / Xcode 编译产物
+.build/
+*.xcodeproj
+*.xcworkspace
+*.app
+DerivedData/
+
+# 临时文件
+*.tmp
 *.swp
-*.swo
 *~
+.DS_Store
 
-# Environment
-.env
-.env.local
-
-# Node modules (no dependencies needed, but just in case)
+# Node
 node_modules/
 
-# Logs
-*.log
-npm-debug.log*
-
-# Temporary files
-tmp/
-temp/
+# macOS
+.AppleDouble
+.LSOverride
