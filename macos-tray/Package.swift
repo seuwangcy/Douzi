@@ -8,6 +8,9 @@ let package = Package(
         .executable(name: "DouziMenuBar", targets: ["DouziMenuBar"])
     ],
     targets: [
-        .executableTarget(name: "DouziMenuBar")
+        .executableTarget(
+            name: "DouziMenuBar",
+            resources: [.copy("Resources")]
+        )
     ]
 )

@@ -71,8 +71,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // 用系统 SF Symbols — 最稳定
-        if #available(macOS 11.0, *) {
+        // 加载自定义图标
+        if let imgPath = Bundle.main.path(forResource: "AppIcon_menubar", ofType: "png"),
+           let image = NSImage(contentsOfFile: imgPath) {
+            btn.image = image
+        } else if #available(macOS 11.0, *) {
+            // Fallback to SF Symbols
             btn.image = NSImage(systemSymbolName: "circle.circle.fill",
                                 accessibilityDescription: "Douzi")
             btn.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
