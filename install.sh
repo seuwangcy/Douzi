@@ -205,14 +205,28 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Launcher script - uses login shell to locate node, then execs the app
+# Launcher script - uses login shell to locate node and AI CLI, then execs the app
 cat > "$APP_BUNDLE/Contents/MacOS/DouziLauncher" << 'LAUNCHSCRIPT'
 #!/bin/bash
-# Get node path via login shell (sources .zshrc/.bashrc to setup nvm/path)
-NODE_PATH=$(bash -l -c 'which node' 2>/dev/null)
-# Export node path so the app can use it
-if [ -n "$NODE_PATH" ]; then
-    export DOUZI_NODE_PATH="$NODE_PATH"
+# Source login shell to inherit user's PATH (nvm, brew, etc.)
+[ -f ~/.zshrc ] && source ~/.zshrc
+[ -f ~/.bashrc ] && source ~/.bashrc
+NODE_PATH=$(which node 2>/dev/null)
+if [ -n "$NODE_PATH" ]; then export DOUZI_NODE_PATH="$NODE_PATH"; fi
+# Detect AI provider from config and export the corresponding CLI path
+CONFIG="${HOME}/.douzi/config.json"
+if [ -f "$CONFIG" ]; then
+    PROVIDER=$(grep -o '"aiProvider"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+    case "$PROVIDER" in
+        claude)
+            CLAUDE_PATH=$(which claude 2>/dev/null)
+            if [ -n "$CLAUDE_PATH" ]; then export DOUZI_AI_PATH="$CLAUDE_PATH"; fi
+            ;;
+        gemini|*)
+            GEMINI_PATH=$(which gemini 2>/dev/null)
+            if [ -n "$GEMINI_PATH" ]; then export DOUZI_AI_PATH="$GEMINI_PATH"; fi
+            ;;
+    esac
 fi
 exec "${HOME}/.douzi/macos-tray/.build/debug/DouziMenuBar"
 LAUNCHSCRIPT

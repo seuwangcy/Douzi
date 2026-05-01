@@ -36,6 +36,16 @@ function getAIProvider() {
   return "gemini";
 }
 
+function getGeminiPath() {
+  if (process.env.DOUZI_AI_PATH) return process.env.DOUZI_AI_PATH;
+  return "gemini";
+}
+
+function getClaudePath() {
+  if (process.env.DOUZI_AI_PATH) return process.env.DOUZI_AI_PATH;
+  return "claude";
+}
+
 async function callGemini(tasksText, skill = "") {
   const { spawnSync } = await import("node:child_process");
 
@@ -50,7 +60,8 @@ async function callGemini(tasksText, skill = "") {
 
   console.log("🤖 调用 Gemini AI 整理中...");
 
-  const result = spawnSync("gemini", [
+  const geminiPath = getGeminiPath();
+  const result = spawnSync(geminiPath, [
     "-p", prompt,
     "--yolo",
     "--output-format=json"
@@ -123,7 +134,8 @@ async function callClaude(tasksText, skill = "") {
 
   console.log("🤖 调用 Claude AI 整理中...");
 
-  const result = spawnSync("claude", [
+  const claudePath = getClaudePath();
+  const result = spawnSync(claudePath, [
     "-p", prompt,
     "--output-format=json"
   ], {

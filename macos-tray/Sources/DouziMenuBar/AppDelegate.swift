@@ -160,7 +160,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.executableURL = URL(fileURLWithPath: nodeBin)
         task.arguments = [serverScript]
         task.currentDirectoryURL = URL(fileURLWithPath: projectDir)
-        task.environment = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environment
+        // Forward AI CLI path if set by launcher script
+        if let aiPath = env["DOUZI_AI_PATH"] {
+            env["DOUZI_AI_PATH"] = aiPath
+        }
+        task.environment = env
 
         let outPipe = Pipe()
         let errPipe = Pipe()
