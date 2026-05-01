@@ -18,9 +18,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     override init() {
         let fm = FileManager.default
-        // 优先从可执行文件所在目录推导 Douzi 项目根目录
+        // 从可执行文件所在目录推导 Douzi 项目根目录
         // 可执行文件位于 ~/.douzi/macos-tray/.build/debug/DouziMenuBar
-        let execPath = ProcessInfo.processInfo.arguments.first ?? ""
+        // 使用 Bundle.main.executablePath 而非 ProcessInfo，因为 Launchpad 启动时
+        // arguments.first 是 DouziLauncher 脚本路径，而非实际可执行文件路径
+        let execPath = Bundle.main.executablePath ?? ""
         let execURL = URL(fileURLWithPath: execPath)
         let macosTrayDir = execURL.deletingLastPathComponent().path // .build/debug
         let buildDir = (macosTrayDir as NSString).deletingLastPathComponent // .build
