@@ -18,7 +18,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     override init() {
         let fm = FileManager.default
-        self.projectDir = fm.currentDirectoryPath
+        // 优先从可执行文件所在目录推导 Douzi 项目根目录
+        // 可执行文件位于 ~/.douzi/macos-tray/.build/debug/DouziMenuBar
+        let execPath = ProcessInfo.processInfo.arguments.first ?? ""
+        let execURL = URL(fileURLWithPath: execPath)
+        let macosTrayDir = execURL.deletingLastPathComponent().path // .build/debug
+        let buildDir = (macosTrayDir as NSString).deletingLastPathComponent // .build
+        let projectDirCandidate = (buildDir as NSString).deletingLastPathComponent // macos-tray
+        let douziDir = (projectDirCandidate as NSString).deletingLastPathComponent // ~/.douzi
+
+        if fm.fileExists(atPath: douziDir + "/server.mjs") {
+            self.projectDir = douziDir
+        } else {
+            // 回退到当前工作目录（终端启动时有效）
+            self.projectDir = fm.currentDirectoryPath
+        }
         self.baseDir = self.projectDir + "/knowledge-base/gtd"
         self.logPath = self.projectDir + "/.douzi-server.log"
         super.init()
