@@ -60,7 +60,15 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     echo -e "${BLUE}📦  Updating Douzi...${NC}"
     cd "$INSTALL_DIR"
     git pull --quiet
+elif [ -z "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
+    # Empty directory
+    echo -e "${BLUE}📦  Downloading Douzi...${NC}"
+    git clone --quiet https://github.com/seuwangcy/Douzi.git "$INSTALL_DIR"
 else
+    # Directory exists but not empty and not a git repo - archive and clone
+    BACKUP_DIR="${INSTALL_DIR}.backup.$(date +%Y%m%d%H%M%S)"
+    echo -e "${YELLOW}⚠️  Existing non-empty ~/.douzi found, backing up to $BACKUP_DIR${NC}"
+    mv "$INSTALL_DIR" "$BACKUP_DIR"
     echo -e "${BLUE}📦  Downloading Douzi...${NC}"
     git clone --quiet https://github.com/seuwangcy/Douzi.git "$INSTALL_DIR"
 fi
