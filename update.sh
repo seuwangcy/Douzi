@@ -36,9 +36,16 @@ CURRENT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 echo -e "${BLUE}📦  Current version: $CURRENT_COMMIT${NC}"
 
 # 3. Stash any local changes (user customizations)
+STASHED=false
 if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
     echo -e "${YELLOW}📦  Stashing local changes (worktree + staged)...${NC}"
-    git stash push --include-untracked -m "douzi-update-auto-stash-$(date +%s)" 2>/dev/null || true
+    if git stash push --include-untracked -m "douzi-update-auto-stash-$(date +%s)"; then
+        STASHED=true
+    else
+        echo -e "${RED}❌  Failed to stash local changes!${NC}"
+        echo -e "${RED}    Your local modifications may be lost.${NC}"
+        echo -e "${YELLOW}    Continuing update anyway...${NC}"
+    fi
 fi
 
 # 4. Pull latest
@@ -204,10 +211,14 @@ fi
 
 # 9. Pop stash if we stashed
 cd "$INSTALL_DIR"
-if git stash list 2>/dev/null | grep -q "douzi-update-auto-stash"; then
-    echo -e "${YELLOW}📦  Restoring local changes (stash apply)...${NC}"
-    echo -e "${YELLOW}    Run "cd ~/.douzi && git stash drop" after confirming changes look correct.${NC}"
-    git stash apply 2>/dev/null || true
+if [ "$STASHED" = true ]; then
+    if git stash list 2>/dev/null | grep -q "douzi-update-auto-stash"; then
+        echo -e "${YELLOW}📦  Restoring local changes...${NC}"
+        if ! git stash pop; then
+            echo -e "${RED}❌  Failed to restore stashed changes!${NC}"
+            echo -e "${YELLOW}    Run manually: cd ~/.douzi && git stash pop${NC}"
+        fi
+    fi
 fi
 
 echo ""

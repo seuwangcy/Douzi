@@ -45,17 +45,56 @@ fi
 
 sleep 1
 
-# ── 2. Prompt: keep GTD data? ─────────────────────────────────────────
+# ── 2. Choose delete mode ─────────────────────────────────────────────
+DELETE_MODE=""
+# Check for interactive mode: TTY check OR DOUZI_INTERACTIVE env var
+IS_INTERACTIVE=false
+if [ -t 0 ] || [ "$DOUZI_INTERACTIVE" = "1" ]; then
+    IS_INTERACTIVE=true
+fi
+
+if [ -d "$HOME/.douzi/knowledge-base" ] && [ "$IS_INTERACTIVE" = true ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️   Knowledge base detected: $HOME/.douzi/knowledge-base${NC}"
+    echo ""
+    echo "Choose uninstall mode:"
+    echo "  1) ${RED}Full uninstall${NC} — Remove management platform + knowledge base (irreversible)"
+    echo "  2) ${GREEN}Keep knowledge base${NC} — Only remove management platform, keep your data"
+    echo ""
+    echo -n "Choice [1]: "
+    read -r DELETE_MODE_CHOICE
+
+    case "$DELETE_MODE_CHOICE" in
+        2|"")
+            DELETE_MODE="keep_knowledge_base"
+            ;;
+        *)
+            DELETE_MODE="full"
+            ;;
+    esac
+else
+    # Non-interactive: default to full uninstall but warn if knowledge-base exists
+    if [ -d "$HOME/.douzi/knowledge-base" ]; then
+        echo ""
+        echo -e "${YELLOW}⚠️   Knowledge base found at $HOME/.douzi/knowledge-base${NC}"
+        echo -e "${YELLOW}    Running in non-interactive mode — will perform FULL uninstall including knowledge base${NC}"
+        echo -e "${YELLOW}    To keep your knowledge base, run interactively: bash $INSTALL_DIR/uninstall.sh${NC}"
+    fi
+    DELETE_MODE="full"
+fi
+
 KEEP_DATA=false
 BACKUP_DIR=""
-if [ -d "$INSTALL_DIR/knowledge-base" ] && [ -t 0 ]; then
+
+# If keeping knowledge base, backup first
+if [ "$DELETE_MODE" = "keep_knowledge_base" ] && [ -d "$HOME/.douzi/knowledge-base" ]; then
+    KEEP_DATA=true
+    BACKUP_DIR="${HOME}/Douzi-data-backup"
     echo ""
-    echo -e "${YELLOW}⚠️   GTD knowledge base found at $INSTALL_DIR/knowledge-base${NC}"
-    echo -e "${YELLOW}    Keep your tasks and notes? [Y/n] ${NC}"
-    read -r KEEP_CONFIRM
-    if [[ ! "$KEEP_CONFIRM" =~ ^[Nn]$ ]]; then
-        KEEP_DATA=true
-        BACKUP_DIR="${HOME}/Douzi-data-backup"
+    echo -e "${YELLOW}📦  Backing up knowledge base to $BACKUP_DIR/knowledge-base${NC}"
+    mkdir -p "$BACKUP_DIR"
+    if ! cp -R "$HOME/.douzi/knowledge-base" "$BACKUP_DIR/"; then
+        echo -e "${RED}❌  Backup failed! Continuing anyway...${NC}"
     fi
 fi
 
@@ -77,20 +116,23 @@ if [ -d "$APP_DIR/Douzi.app" ]; then
 fi
 echo -e "${GREEN}    ✅  Launchpad entry removed${NC}"
 
-# ── 5. Backup knowledge base if requested ─────────────────────────────
-if [ "$KEEP_DATA" = true ] && [ -d "$INSTALL_DIR/knowledge-base" ]; then
-    echo -e "${YELLOW}📦  Backing up knowledge base to $BACKUP_DIR...${NC}"
-    mkdir -p "$BACKUP_DIR"
-    cp -R "$INSTALL_DIR/knowledge-base" "$BACKUP_DIR/" 2>/dev/null || true
-    echo -e "${GREEN}    ✅  Backed up to $BACKUP_DIR/knowledge-base${NC}"
-fi
-
 # ── 6. Remove installation directory ──────────────────────────────────
-echo -e "${YELLOW}🗑️   Removing installation directory...${NC}"
 if [ -d "$INSTALL_DIR" ]; then
-    rm -rf "$INSTALL_DIR"
+    if [ "$KEEP_DATA" = true ]; then
+        echo -e "${YELLOW}🗑️   Removing management platform files...${NC}"
+        # Remove all except knowledge-base directory
+        find "$INSTALL_DIR" -mindepth 1 -not -path "$INSTALL_DIR/knowledge-base*" -delete 2>/dev/null || true
+        # Remove any empty directories left behind (except knowledge-base itself)
+        find "$INSTALL_DIR" -mindepth 1 -type d -empty -not -path "$INSTALL_DIR/knowledge-base*" -delete 2>/dev/null || true
+        # Remove INSTALL_DIR if it's now empty (should only contain knowledge-base or nothing)
+        rmdir "$INSTALL_DIR" 2>/dev/null || true
+        echo -e "${GREEN}    ✅  Management platform removed, knowledge base kept at $HOME/.douzi/knowledge-base/${NC}"
+    else
+        echo -e "${YELLOW}🗑️   Removing installation directory...${NC}"
+        rm -rf "$INSTALL_DIR"
+        echo -e "${GREEN}    ✅  Installation directory removed${NC}"
+    fi
 fi
-echo -e "${GREEN}    ✅  Installation directory removed${NC}"
 
 # ── 7. Remove PATH from shell rc files ────────────────────────────────
 echo -e "${YELLOW}🔧  Cleaning up shell PATH...${NC}"
@@ -124,9 +166,9 @@ fi
 echo -e "${YELLOW}🔧  Cleaning up crontab entries...${NC}"
 if crontab -l &>/dev/null; then
     CURRENT_CRON=$(crontab -l 2>/dev/null)
-    if echo "$CURRENT_CRON" | grep -q "douzi\|\.douzi"; then
+    if echo "$CURRENT_CRON" | grep -qE "^[^#].*(\\.douzi|douzi)"; then
         # Filter out douzi lines
-        NEW_CRON=$(echo "$CURRENT_CRON" | grep -v "douzi\|\.douzi" 2>/dev/null || true)
+        NEW_CRON=$(echo "$CURRENT_CRON" | grep -vE "^[^#]*(\\.douzi|douzi)" 2>/dev/null || true)
         if [ -n "$NEW_CRON" ]; then
             echo "$NEW_CRON" | crontab - 2>/dev/null || true
         else
@@ -143,18 +185,30 @@ fi
 # ── Done ───────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}      ✅  Douzi has been uninstalled!${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
 
-if [ "$KEEP_DATA" = true ] && [ -n "$BACKUP_DIR" ]; then
-    echo -e "${YELLOW}📦  Your GTD data has been backed up to:${NC}"
-    echo "    $BACKUP_DIR/knowledge-base"
+if [ "$DELETE_MODE" = "keep_knowledge_base" ]; then
+    echo -e "${GREEN}      ✅  管理平台已卸载！知识库已保留${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-fi
+    echo -e "${YELLOW}📁 知识库位置:${NC}"
+    echo "    $HOME/.douzi/knowledge-base/"
+    echo ""
+    echo -e "${YELLOW}💡 如需重新安装:${NC}"
+    echo "    curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash"
+    echo ""
+    echo -e "${YELLOW}💡 知识库可通过 Obsidian 打开:${NC}"
+    echo "    open -a Obsidian $HOME/.douzi/knowledge-base/gtd"
+else
+    echo -e "${GREEN}      ✅  Douzi 已完全卸载！${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
 
-echo -e "${YELLOW}💡  To reload your shell configuration:${NC}"
-echo "    source ~/.zshrc  (or restart terminal)"
-echo ""
-echo -e "${YELLOW}💡  To reinstall:${NC}"
-echo "    curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash"
+    if [ "$KEEP_DATA" = true ] && [ -n "$BACKUP_DIR" ]; then
+        echo -e "${YELLOW}📦 知识库已备份到:${NC}"
+        echo "    $BACKUP_DIR/knowledge-base"
+        echo ""
+    fi
+
+    echo -e "${YELLOW}💡 重新安装:${NC}"
+    echo "    curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash"
+fi

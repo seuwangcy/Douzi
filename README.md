@@ -10,7 +10,34 @@ Douzi 不是又一个 GTD 工具——它是对 GTD 方法论的 **一次进化*
 ### 前提条件
 
 - Node.js 18+（仅此而已，零外部依赖）
-- Gemini CLI 工具（用于 AI 整理功能）
+- **AI 整理功能需要本地 AI CLI 工具**（二选一）：
+  - [Gemini CLI](https://github.com/google/gemini-cli)：`npm install -g @google/gemini-cli`
+  - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)：`npm install -g @anthropic-ai/claude-code`
+- 通过配置文件选择 AI 提供商（见下方说明）
+
+### AI 提供商配置
+
+Douzi 支持选择不同的本地 AI CLI 工具进行整理。通过配置文件指定：
+
+```bash
+# 配置文件位置
+~/.douzi/config.json
+```
+
+**配置格式：**
+```json
+{
+  "aiProvider": "gemini"
+}
+```
+
+**可选值：**
+| 值 | 说明 |
+|----|------|
+| `gemini` | 使用 Google Gemini CLI（默认） |
+| `claude` | 使用 Anthropic Claude Code |
+
+> 配置文件不存在时，默认使用 `gemini`。请确保所选的 AI CLI 工具已在本机安装并可正常调用。
 
 ### ⭐ 推荐：一键安装（macOS）
 
@@ -44,7 +71,7 @@ open http://localhost:5000
 ### 用 Obsidian 打开
 
 ```bash
-# 将 knowledge-base/ 添加到 Obsidian 作为 vault
+# 将 ~/.douzi/knowledge-base/ 添加到 Obsidian 作为 vault
 # 或使用 Foam 插件在 VS Code 中打开
 ```
 
@@ -96,7 +123,7 @@ bash ~/.douzi/uninstall.sh
 | crontab | 移除与 Douzi 相关的定时任务 |
 | 运行中的进程 | 停止菜单栏应用和 Node.js 服务器 |
 
-> 交互模式会询问是否保留 `knowledge-base/` 下的 GTD 数据。使用 `curl | bash` 一键卸载时，所有数据将被移除。
+> 交互模式会询问是否保留 `~/.douzi/knowledge-base/` 下的 GTD 数据。使用 `curl | bash` 一键卸载时，所有数据将被移除。
 
 ### 查看安装信息
 
@@ -177,13 +204,15 @@ node ai-process.mjs --dry-run
 ```bash
 PORT=8080 node server.mjs
 ```
-    volumes:
-      - ./knowledge-base:/app/knowledge-base
-      - ./server.mjs:/app/server.mjs
-      - ./ai-process.mjs:/app/ai-process.mjs
-    command: node server.mjs
-    ports:
-      - "5000:5000"
+
+### 自定义知识库路径（可选）
+
+默认情况下，文件存储在 `~/.douzi/knowledge-base/gtd/`。可通过环境变量自定义：
+
+```bash
+DOUZI_KNOWLEDGE_BASE_DIR=~/my-kb/gtd node server.mjs
+DOUZI_KNOWLEDGE_BASE_DIR=~/my-kb/gtd node ai-process.mjs
+```
 ```
 
 ---
@@ -209,11 +238,11 @@ PORT=8080 node server.mjs
 
 ```mermaid
 flowchart LR
-    A["📥 Collect<br>收集"] --> B["🔄 Clarify<br>厘清"]
-    B --> C["🏗️ Organize<br>组织"]
-    C --> D["👀 Reflect<br>回顾"]
+    A["📥 Collect"] --> B["🔄 Clarify"]
+    B --> C["🏗️ Organize"]
+    C --> D["👀 Reflect"]
     D --> A
-    B -.->|"2分钟法则"| E["⚡ Engage<br>执行"]
+    B -.->|"2分钟法则"| E["⚡ Engage"]
     E --> D
 ```
 
@@ -229,7 +258,7 @@ flowchart LR
 
 纯 Markdown + 双向链接，与 Obsidian 生态完美兼容：
 
-- ✅ **Obsidian** — 直接打开 `knowledge-base/` 文件夹
+- ✅ **Obsidian** — 直接打开 `~/.douzi/knowledge-base/` 文件夹
 - ✅ **Foam (VS Code)** — 作为 Foam workspace 直接使用
 - ✅ **标准 front matter** — YAML 元数据格式
 - ✅ **双向链接** — `[[页面名]]` 语法，构建知识图谱
@@ -258,7 +287,32 @@ open http://localhost:5000
 
 ---
 
-## 📁 目录结构
+## 📁 存储架构设计
+
+Douzi 采用**平台与数据分离**的架构设计：
+
+```
+~/.douzi/                    # 安装目录（管理平台代码）
+└── knowledge-base/         # 用户知识库（个人数据，不随项目跟踪）
+    └── gtd/
+        ├── inbox/           # 📥 收件箱
+        ├── next_actions/    # 🎯 下一步行动
+        ├── waiting_for/     # ⏳ 等待他人
+        ├── projects/        # 📋 项目
+        ├── done/            # ✅ 已完成
+        ├── archived/        # 📦 已归档
+        ├── reference/       # 📚 知识参考
+        └── daily_review/    # 📝 每日回顾
+```
+
+### 设计原则
+
+| 组件 | 存储位置 | 说明 |
+|------|----------|------|
+| **管理平台** | `~/.douzi/` | 代码、构建产物，可通过 git 更新 |
+| **知识库** | `~/.douzi/knowledge-base/` | 用户个人数据，不随项目跟踪 |
+
+### 目录结构说明
 
 ```
 douzi/
@@ -268,18 +322,6 @@ douzi/
 ├── update.sh              # 🆕 更新脚本（拉取最新 + 重新编译）
 ├── uninstall.sh           # 🗑️ 卸载脚本（完整清理）
 ├── macos-tray/             # 🍎 macOS 菜单栏应用（状态栏入口）
-├── knowledge-base/
-│   └── gtd/
-│       ├── _README.md      # GTD 使用说明
-│       ├── _TEMPLATE.md    # 任务模板
-│       ├── inbox/          # 📥 收件箱 - 想法先扔这里
-│       ├── next_actions/   # 🎯 下一步行动
-│       ├── waiting_for/    # ⏳ 等待他人
-│       ├── projects/       # 📋 多步骤项目
-│       ├── done/           # ✅ 刚完成
-│       ├── archived/       # 📦 已归档
-│       ├── reference/      # 📚 知识参考
-│       └── daily_review/   # 📝 每日回顾
 ├── docs/                   # 📖 文档
 │   ├── gtd-workflow.md
 │   ├── ai-setup.md
@@ -290,6 +332,8 @@ douzi/
 │   └── templates/          # 文档模板
 ├── LICENSE                 # MIT License
 └── .gitignore
+
+# 用户数据（存储在 ~/.douzi/knowledge-base/，不随项目跟踪）
 ```
 
 ---

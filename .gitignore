@@ -27,3 +27,6 @@ node_modules/
 .windsorf/
 .roo/
 .codeium/
+
+# 用户知识库（存储在 ~/.douzi/knowledge-base/）
+knowledge-base/

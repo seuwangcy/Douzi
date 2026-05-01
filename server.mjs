@@ -9,10 +9,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE_DIR = path.join(__dirname, 'knowledge-base', 'gtd');
+const BASE_DIR = process.env.DOUZI_KNOWLEDGE_BASE_DIR || path.join(os.homedir(), '.douzi', 'knowledge-base', 'gtd');
 
 const COLUMNS = {
   inbox: { title: '📥 收件箱', dir: 'inbox' },

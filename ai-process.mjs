@@ -15,13 +15,25 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_BASE_DIR = path.join(__dirname, "knowledge-base", "gtd");
+const DEFAULT_BASE_DIR = process.env.DOUZI_KNOWLEDGE_BASE_DIR || path.join(os.homedir(), ".douzi", "knowledge-base", "gtd");
+const CONFIG_PATH = path.join(os.homedir(), ".douzi", "config.json");
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function getAIProvider() {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      if (config.aiProvider) return config.aiProvider;
+    }
+  } catch {}
+  return "gemini";
 }
 
 async function callGemini(tasksText, skill = "") {
@@ -98,6 +110,86 @@ async function callGemini(tasksText, skill = "") {
   }
 
   return { rawOutput, actions, error: null };
+}
+
+async function callClaude(tasksText, skill = "") {
+  const { spawnSync } = await import("node:child_process");
+
+  const instructions = skill
+    ? `请严格按照以下 SKILL.md 规则整理任务：\n\n${skill}\n\n`
+    : "";
+
+  const prompt = `${instructions}待整理的任务内容：\n\n${tasksText}\n\n请分析每个任务，输出整理结果。\n\n**严格只输出一个 JSON 数组，不要任何其他文字。** 格式：\n[\n  {"file":"原文件名.md","action":"moved|updated|skipped","target_dir":"目标列目录名","priority":"P0|P1|P2|P3","title":"精炼标题","tags":["标签1"],"reason":"整理理由"},\n  ...\n]`;
+
+  console.log("🤖 调用 Claude AI 整理中...");
+
+  const result = spawnSync("claude", [
+    "-p", prompt,
+    "--output-format=json"
+  ], {
+    encoding: "utf-8",
+    timeout: 180000,
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+
+  const rawOutput = (result.stdout || "").trim();
+  if (!rawOutput) {
+    if (result.error) throw new Error("Claude 执行失败: " + result.error.message);
+    throw new Error("Claude 返回空输出");
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawOutput);
+  } catch {
+    return { rawOutput, actions: null, error: "Claude 返回格式异常" };
+  }
+
+  const aiReply = parsed.response || "";
+  if (!aiReply.trim()) {
+    return { rawOutput, actions: null, error: "Claude 未返回内容" };
+  }
+
+  let cleanReply = aiReply.replace(/```(?:json)?\s*\n/g, "").replace(/\n```\s*$/g, "");
+  cleanReply = cleanReply.trim();
+
+  let actions = null;
+  const startIdx = cleanReply.indexOf("[");
+  if (startIdx !== -1) {
+    let depth = 0;
+    let endIdx = -1;
+    let inStr = false;
+    let escape = false;
+    for (let i = startIdx; i < cleanReply.length; i++) {
+      const ch = cleanReply[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "[") depth++;
+      else if (ch === "]") depth--;
+      if (depth === 0) { endIdx = i; break; }
+    }
+    if (endIdx !== -1) {
+      try { actions = JSON.parse(cleanReply.slice(startIdx, endIdx + 1)); }
+      catch { actions = null; }
+    }
+  }
+
+  if (!actions || !Array.isArray(actions)) {
+    return { rawOutput, actions: null, error: "AI 回复中未找到有效 JSON 数组" };
+  }
+
+  return { rawOutput, actions, error: null };
+}
+
+async function callAI(tasksText, skill = "") {
+  const provider = getAIProvider();
+  if (provider === "claude") {
+    return callClaude(tasksText, skill);
+  }
+  return callGemini(tasksText, skill);
 }
 
 function applyActions(actions, inboxDir, baseDir, dryRun = false) {
@@ -194,7 +286,7 @@ export async function organizeInbox({ dryRun = false, targetFile = null, baseDir
     return `\n=== 文件: ${f} ===\n${content}`;
   }).join("\n");
 
-  const { actions, error } = await callGemini(tasksText, skill);
+  const { actions, error } = await callAI(tasksText, skill);
 
   if (error) {
     throw new Error(`${error}`);
@@ -202,8 +294,9 @@ export async function organizeInbox({ dryRun = false, targetFile = null, baseDir
 
   const summary = applyActions(actions, inboxDir, baseDir, dryRun);
   const modeLabel = dryRun ? "[DRY RUN] " : "";
+  const provider = getAIProvider();
   return {
-    result: `🤖 ${modeLabel}Gemini 已整理 ${summary.moved + summary.updated + summary.skipped} 项：\n` + summary.details.join("\n"),
+    result: `🤖 ${modeLabel}${provider === "claude" ? "Claude" : "Gemini"} 已整理 ${summary.moved + summary.updated + summary.skipped} 项：\n` + summary.details.join("\n"),
     summary
   };
 }

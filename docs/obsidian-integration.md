@@ -51,7 +51,7 @@ tags: ["标签1", "标签2"]
 
 ```bash
 # 在 Obsidian 中打开
-# File → Open Folder → 选择 knowledge-base/gtd/
+# File → Open Folder → 选择 ~/.douzi/knowledge-base/gtd/
 ```
 
 或者将整个 `douzi/` 作为 vault，Obsidian 会索引所有 Markdown 文件。
@@ -100,7 +100,7 @@ WHERE status != "done"
 
 ```json
 {
-  "foam.files.root": "knowledge-base/gtd",
+  "foam.files.root": "~/.douzi/knowledge-base/gtd",
   "foam.files.ignore": [
     "**/_TEMPLATE.md",
     "**/_README.md"

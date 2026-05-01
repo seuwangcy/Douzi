@@ -65,6 +65,53 @@ else
     git clone --quiet https://github.com/seuwangcy/Douzi.git "$INSTALL_DIR"
 fi
 
+# 5.1 Initialize knowledge-base directory structure
+echo -e "${BLUE}📂  Initializing knowledge base...${NC}"
+mkdir -p "$HOME/.douzi/knowledge-base/gtd"/{inbox,next_actions,waiting_for,projects,done,archived,reference,daily_review}
+
+KB_DIR="$HOME/.douzi/knowledge-base/gtd"
+KB_TEMPLATE_DIR="$INSTALL_DIR/docs/templates"
+
+# Copy _README.md if not exists
+if [ ! -f "$KB_DIR/_README.md" ] && [ -f "$KB_TEMPLATE_DIR/gtd-readme.md" ]; then
+    cp "$KB_TEMPLATE_DIR/gtd-readme.md" "$KB_DIR/_README.md"
+fi
+
+# Copy _TEMPLATE.md if not exists
+if [ ! -f "$KB_DIR/_TEMPLATE.md" ] && [ -f "$KB_TEMPLATE_DIR/gtd-template.md" ]; then
+    cp "$KB_TEMPLATE_DIR/gtd-template.md" "$KB_DIR/_TEMPLATE.md"
+fi
+
+# 5.2 Check AI tool availability
+echo -e "${BLUE}🤖  Checking AI CLI tools...${NC}"
+HAS_GEMINI=false
+HAS_CLAUDE=false
+
+if command -v gemini &> /dev/null; then
+    HAS_GEMINI=true
+    echo -e "${GREEN}✅  Gemini CLI found${NC}"
+fi
+
+if command -v claude &> /dev/null; then
+    HAS_CLAUDE=true
+    echo -e "${GREEN}✅  Claude Code found${NC}"
+fi
+
+# Create default config
+CONFIG_FILE="$HOME/.douzi/config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    if $HAS_GEMINI; then
+        echo "{\"aiProvider\": \"gemini\"}" > "$CONFIG_FILE"
+        echo -e "${GREEN}📝  Created config with Gemini CLI${NC}"
+    elif $HAS_CLAUDE; then
+        echo "{\"aiProvider\": \"claude\"}" > "$CONFIG_FILE"
+        echo -e "${GREEN}📝  Created config with Claude Code${NC}"
+    else
+        echo "{\"aiProvider\": \"gemini\"}" > "$CONFIG_FILE"
+        echo -e "${YELLOW}⚠️  No AI CLI found. Install Gemini CLI or Claude Code for AI features.${NC}"
+    fi
+fi
+
 # 6. Build menu bar app
 echo -e "${BLUE}🔨  Building macOS menu bar app...${NC}"
 cd "$INSTALL_DIR/macos-tray"
