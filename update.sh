@@ -118,6 +118,8 @@ case "${1:-}" in
         echo "  douzi help         Show this help message"
         exit 0
         ;;
+    *)
+        ;;
 esac
 
 if [ ! -f "$EXEC" ]; then
