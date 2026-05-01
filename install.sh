@@ -165,6 +165,19 @@ if pgrep -xq "DouziMenuBar"; then
     exit 0
 fi
 
+# Set up environment for GUI app (nvm paths, AI CLI paths)
+source ~/.zshrc 2>/dev/null
+source ~/.bashrc 2>/dev/null
+NODE_PATH=$(which node 2>/dev/null)
+GEMINI_PATH=$(which gemini 2>/dev/null)
+CLAUDE_PATH=$(which claude 2>/dev/null)
+CONFIG="$DOUZI_DIR/config.json"
+PROVIDER=gemini
+[ -f "$CONFIG" ] && PROVIDER=$(grep -o '"aiProvider"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+[ "$PROVIDER" = claude ] && AI_PATH="$CLAUDE_PATH" || AI_PATH="$GEMINI_PATH"
+export DOUZI_NODE_PATH="$NODE_PATH"
+export DOUZI_AI_PATH="$AI_PATH"
+
 nohup "$EXEC" > /dev/null 2>&1 &
 echo "🚀  Douzi started! Look for the ⦿ icon in your menu bar."
 CMDSCRIPT
