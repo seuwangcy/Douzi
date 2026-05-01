@@ -77,22 +77,39 @@ swift build --quiet 2>&1 || {
 echo -e "${BLUE}🖥️   Creating command-line shortcut...${NC}"
 cat > "$BIN_DIR/douzi" << 'CMDSCRIPT'
 #!/bin/bash
-# Douzi Launcher — launches menu bar app
+# Douzi CLI — Launcher & management
 DOUZI_DIR="${HOME}/.douzi"
 EXEC="$DOUZI_DIR/macos-tray/.build/debug/DouziMenuBar"
+
+case "${1:-}" in
+    update|upgrade)
+        exec bash "$DOUZI_DIR/update.sh"
+        ;;
+    uninstall|remove)
+        exec bash "$DOUZI_DIR/uninstall.sh"
+        ;;
+    help|--help|-h)
+        echo "🫘  Douzi — AI-driven GTD Manager"
+        echo ""
+        echo "Usage:"
+        echo "  douzi              Launch menu bar app"
+        echo "  douzi update       Update to latest version"
+        echo "  douzi uninstall    Remove Douzi completely"
+        echo "  douzi help         Show this help message"
+        exit 0
+        ;;
+esac
 
 if [ ! -f "$EXEC" ]; then
     echo "❌  Douzi not found. Run: curl -fsSL ... | bash"
     exit 1
 fi
 
-# Check if already running
 if pgrep -xq "DouziMenuBar"; then
     echo "🫘  Douzi is already running. Look for the icon in your menu bar."
     exit 0
 fi
 
-# Launch in background
 nohup "$EXEC" > /dev/null 2>&1 &
 echo "🚀  Douzi started! Look for the ⦿ icon in your menu bar."
 CMDSCRIPT

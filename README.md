@@ -1,16 +1,211 @@
-# 🚀 Douzi — AI-Powered GTD Knowledge Board
+# Douzi — AI驱动的事务和知识管理器
+> **有想法只管扔进 Inbox，剩下的让 AI 来安排。**
 
-> **闭眼往 Inbox 扔想法，剩下的交给 AI 和 GTD 方法论。**
-
-Douzi 是一个基于 **GTD (Getting Things Done)** 方法论的个人知识管理系统，通过 **AI 辅助整理** + **Markdown 双向链接** + **零依赖 Web 看板**，让知识管理变得前所未有的简单。
+Douzi 不是又一个 GTD 工具——它是对 GTD 方法论的 **一次进化**。原生集成 AI 分流 + 菜单栏秒级入口 + 零依赖看板，让收集 → 厘清 → 组织 → 回顾 → 执行的每一个环节都变得前所未有的轻松。
 
 ---
 
-## ✨ 四大核心特点
+## 🚀 快速开始
 
-### 1. 🎯 正宗 GTD 方法论实践
+### 前提条件
 
-完整实现 David Allen 的 GTD 五步工作流，从收集到回顾形成闭环：
+- Node.js 18+（仅此而已，零外部依赖）
+- Gemini CLI 工具（用于 AI 整理功能）
+
+### ⭐ 推荐：一键安装（macOS）
+
+安装 macOS 菜单栏应用 + 命令行工具，之后随时通过状态栏图标或终端启动：
+
+```bash
+# 一键安装
+curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash
+
+# 启动（任选一种）
+douzi              # 终端命令行
+douzi update       # 更新到最新版本
+douzi uninstall    # 完全移除 Douzi
+open -a Douzi      # Launchpad / 应用文件夹
+```
+
+安装后，Douzi 常驻 **菜单栏（状态栏图标 ⦿）**：
+- **⌘N** 快速添加待办，秒进 Inbox
+- **⌘O** 一秒打开看板
+- 右键「🧠 一键整理 Inbox」，AI 自动分流
+
+### 方式二：手动启动（浏览器使用）
+
+```bash
+git clone https://github.com/seuwangcy/Douzi.git
+cd douzi
+node server.mjs           # 零依赖启动看板
+open http://localhost:5000
+```
+
+### 用 Obsidian 打开
+
+```bash
+# 将 knowledge-base/ 添加到 Obsidian 作为 vault
+# 或使用 Foam 插件在 VS Code 中打开
+```
+
+## 🔄 维护管理
+
+### 更新 Douzi
+
+安装后，随时拉取最新版本并重新编译：
+
+```bash
+# 方式一：CLI 命令（推荐）
+douzi update
+
+# 方式二：运行更新脚本
+bash ~/.douzi/update.sh
+
+# 方式三：从项目目录手动更新
+cd ~/.douzi
+git pull
+cd macos-tray
+swift build
+```
+
+更新脚本会自动：
+- 拉取最新代码（保留本地修改）
+- 重新编译 macOS 菜单栏应用
+- 更新命令行启动器
+- 重启运行中的进程（如菜单栏应用、Node.js 服务）
+
+### 卸载 Douzi
+
+想移除 Douzi？运行卸载脚本即可彻底清理：
+
+```bash
+# 方式一：CLI 命令（推荐）
+douzi uninstall
+
+# 方式二：运行卸载脚本
+bash ~/.douzi/uninstall.sh
+```
+
+卸载脚本会移除以下内容：
+| 清理项 | 说明 |
+|--------|------|
+| `~/.douzi/` | 安装目录（仓库代码 + 构建产物） |
+| `~/.local/bin/douzi` | 命令行启动器 |
+| `~/Applications/Douzi.app` | Launchpad 启动入口 |
+| shell PATH | 移除 `~/.local/bin` 路径添加 |
+| crontab | 移除与 Douzi 相关的定时任务 |
+| 运行中的进程 | 停止菜单栏应用和 Node.js 服务器 |
+
+> 交互模式会询问是否保留 `knowledge-base/` 下的 GTD 数据。使用 `curl | bash` 一键卸载时，所有数据将被移除。
+
+### 查看安装信息
+
+```bash
+# 查看安装位置
+ls -la ~/.douzi
+
+# 查看当前版本
+cd ~/.douzi && git log --oneline -1
+
+# 查看运行状态
+pgrep -x "DouziMenuBar" && echo "菜单栏应用运行中" || echo "菜单栏应用已停止"
+lsof -i :5000 -P -n 2>/dev/null | grep LISTEN && echo "看板服务运行中" || echo "看板服务未启动"
+```
+
+---
+---
+
+## 🛠️ 使用方法
+
+### 基础：两秒上手
+
+**Step 1 — 扔想法**
+有灵感了？双击状态栏图标（⦿）→ `⌘N` → 输入，搞定。
+
+或者直接在看板 Inbox 列点「+」、或在终端创建 Markdown 文件，想怎么来怎么来。
+
+**Step 2 — AI 整理**
+做完 Step 1，你的一天就从这里分叉：
+
+- 传统 GTD：你得打开收件箱逐条阅读、判断类别、手动移动文件，30 分钟起步。
+- **Douzi**：点一下菜单栏「🧠 一键整理 Inbox」（或看板右上角「✨ 一键整理」），AI 自动分类、打标、生成下一步行动，5 秒出结果。
+
+**Step 3 — 执行与回顾**
+看板 `next_actions/` 列展示你今天该做什么。完成了拖入 `done/`，周末一键归档。
+
+### 进阶：5 种 AI 整理触发方式
+
+Douzi 的 AI 分流能力可以从任意入口触达，确保"整理"永远不会成为你的阻碍：
+
+| 方式 | 操作 | 适用场景 |
+|------|------|---------|
+| 🍎 **菜单栏一键整理** | 状态栏图标 → 点击「🧠 一键整理 Inbox」 | 最快捷，日常随手用 |
+| 🌐 **看板一键整理** | 浏览器看板 → 右上角「✨ 一键整理」 | 正在看板时顺手整理 |
+| 💻 **命令行整理** | `node ai-process.mjs` | 批量处理、脚本集成 |
+| 🔌 **代码导入整理** | `import { organizeInbox }` | 集成到其他工具 |
+| ⏰ **定时自动整理** | `crontab -e` + `node ai-process.mjs` | 每天固定时间自动整理 |
+
+**命令行示例：**
+
+```bash
+# 全部整理
+node ai-process.mjs
+
+# 只整理指定文件
+node ai-process.mjs --file 2026-04-29-想法.md
+
+# 试运行（预览不实际移动）
+node ai-process.mjs --dry-run
+```
+
+### 🍎 macOS 菜单栏功能
+
+| 菜单项 | 快捷键 | 作用 |
+|--------|--------|------|
+| ✨ 快速添加待办 | ⌘N | 弹出 SwiftUI 窗口，输入内容直接写入 Inbox |
+| 🌐 打开看板 | ⌘O | 自动启动服务（如未运行），打开 localhost:5000 |
+| 🧠 一键整理 Inbox | — | 调用 AI 自动分类 Inbox 中的待办 |
+| 服务状态 | — | 实时显示 Node.js 服务是否运行 |
+| 🔄 重启服务 | ⌘R | 终止并重新启动 `node server.mjs` |
+| 🛑 停止服务 | — | 终止 Node.js 进程 |
+| 退出 Douzi | ⌘Q | 停止服务并退出菜单栏应用 |
+
+> 菜单栏应用详细编译及使用指南见 [docs/macos-menu-bar.md](docs/macos-menu-bar.md)
+
+### 自定义看板端口
+
+```bash
+PORT=8080 node server.mjs
+```
+    volumes:
+      - ./knowledge-base:/app/knowledge-base
+      - ./server.mjs:/app/server.mjs
+      - ./ai-process.mjs:/app/ai-process.mjs
+    command: node server.mjs
+    ports:
+      - "5000:5000"
+```
+
+---
+
+## ✨ 核心特点
+
+### 1. 🤖 AI 让 GTD "厘清"环节降本 90%
+
+**这是 Douzi 对 GTD 方法论的最大进化。**
+
+传统 GTD 最耗时的"厘清"（Clarify）环节——逐条判断每条想法是 2 分钟任务、等待事项还是复杂项目——被 AI 完全接管：
+
+- 📥 **自动分类** — AI 判断内容性质，写入对应目录
+- 🏷️ **自动打标** — 根据语义添加优先级和标签
+- 📋 **生成下一步行动** — 模糊想法 → 具体可执行任务
+- 🔄 **5 种触发方式**（菜单栏 / 看板 / 终端 / 代码 / 定时）
+
+过去手动整理 30 分钟的工作量，现在只需要一个点击，5 秒完成。
+
+### 2. 🎯 正宗 GTD 五步工作流
+
+完整实现 David Allen 的五步闭环：
 
 ```mermaid
 flowchart LR
@@ -24,280 +219,77 @@ flowchart LR
 
 | GTD 步骤 | Douzi 实现 |
 |---------|-----------|
-| **收集** Capture | 零阻力的 `inbox/` 收件箱，有想法就记录 |
-| **厘清** Clarify | AI 自动分类 →  Inbox → Next/Waiting/Project |
+| **收集** Capture | `inbox/` 收件箱 + 菜单栏 ⌘N 秒级输入 |
+| **厘清** Clarify | AI 自动分类，无需手动判断 |
 | **组织** Organize | 结构化目录 + 优先级 + 标签系统 |
-| **回顾** Reflect | 每日回顾模板，养成复盘习惯 |
-| **执行** Engage | Web 看板可视化，一眼看到下一步行动 |
-
-### 2. 🤖 AI 辅助自动分流
-
-**不再需要手动整理收件箱！** 只需闭眼往 Inbox 里扔想法，AI 帮你完成分流：
-
-- 📥 **自动分类** — AI 判断每条内容是 2 分钟能做完、需要等待他人、还是多步骤项目
-- 🏷️ **自动打标** — 根据内容语义自动添加优先级和标签
-- 📋 **生成下一步行动** — 将模糊想法拆解为具体可执行任务
-- 🔄 **一键整理** — 点击看板上的「✨ 一键整理」按钮，或运行 `ai-process.mjs`，5 分钟搞定过去需要 30 分钟的手动整理
-
-```bash
-# 用法：先往里扔想法
-cat > knowledge-base/gtd/inbox/2026-04-29-新想法.md << 'EOF'
----
-title: "调研竞品方案"
-status: "inbox"
-priority: "P2"
-tags: ["调研"]
----
-
-# 调研竞品方案
-
-需要比较 3 个竞品...
-EOF
-
-# 方法 1：终端直接运行整理
-node ai-process.mjs --file 2026-04-29-新想法.md
-
-# 方法 2：Web 看板中点击「✨ 一键整理」按钮
-```
+| **回顾** Reflect | 每日回顾模板，培养复盘习惯 |
+| **执行** Engage | Web 看板 + 菜单栏，一眼看到下一步 |
 
 ### 3. 🔗 Obsidian / Foam 无缝衔接
 
-知识库采用 **标准 Markdown + 双向链接** 规范，与 Obsidian 生态完美兼容：
+纯 Markdown + 双向链接，与 Obsidian 生态完美兼容：
 
-- ✅ **Obsidian** — 直接打开 `knowledge-base/` 文件夹即可
-- ✅ **Foam (VS Code)** — 直接作为 Foam workspace 使用
-- ✅ **标准 front matter** — YAML 元数据格式与 Zettelkasten 兼容
-- ✅ **双向链接** — `[[页面名]]` 语法，构建个人知识图谱
-- ✅ **标签系统** — `#标签` 语法，支持多级分类
-
-```markdown
----
-title: "AI 搜项目规划"
-status: "project"
-priority: "P0"
-created: 2026-04-28
-updated: 2026-04-28
-tags: ["AI", "项目"]
----
-
-# AI 搜项目规划
-
-## 关联项目
-- 详见 [[AI搜-设计规划器问题归因体系]]
-- 参考 [[个人知识管理体系]]
-
-## 关键指标
-- [[AI搜Q2关键落地项和过程指标]]
-```
+- ✅ **Obsidian** — 直接打开 `knowledge-base/` 文件夹
+- ✅ **Foam (VS Code)** — 作为 Foam workspace 直接使用
+- ✅ **标准 front matter** — YAML 元数据格式
+- ✅ **双向链接** — `[[页面名]]` 语法，构建知识图谱
+- ✅ **标签系统** — `#标签` 语法，多级分类
 
 ### 4. 🌐 零依赖 Web 看板
 
-纯 JavaScript 实现，**一个命令启动**，无需任何构建工具：
+纯 JavaScript 实现，一个命令启动：
 
 ```bash
-# 只需 Node.js，零依赖
 node server.mjs
-
-# 打开 http://localhost:5000 即可使用
 open http://localhost:5000
 ```
 
-**看板功能：**
-- 📊 看板视图 — 按 GTD 状态分列展示所有任务
-- 🔍 全文搜索 — 实时过滤卡片
-- ➕ 快速添加 — 每列下方直接新建任务
-- 📦 一键归档 — 已完成项批量归档
-- ✏️ 在线编辑 — 弹窗内直接编辑 Markdown
-- 🏷️ 标签筛选 — 按标签过滤视图
-- ✨ 一键整理 — 调用 Gemini AI 自动分类 Inbox
-- 📱 移动友好 — 手机浏览器随时查看
+**看板功能：** 按 GTD 状态分列展示 · 全文搜索 · 快速添加 · 一键归档 · 在线编辑 · 标签筛选 · 一键整理 · 移动友好
 
 ---
 
-## 🚀 快速开始
+## 💡 真实场景
 
-### 前提条件
+**通勤路上的灵感** → 菜单栏 ⌘N 扔进 Inbox → 到家一键 AI 整理 → 看板上整整齐齐
 
-- Node.js 18+ （仅此而已，零外部依赖）
-- Gemini CLI 工具（用于 AI 整理功能）
+**日清日毕** → 打开看板看 `next_actions/` → 完成拖入 `done/` → 下班前一键清空 Inbox
 
-### 方式一：一键安装（推荐 macOS）
-
-安装 macOS 菜单栏应用 + 命令行工具，之后随时通过 Launchpad 或终端启动：
-
-```bash
-# 一键安装
-curl -fsSL https://raw.githubusercontent.com/seuwangcy/Douzi/main/install.sh | bash
-
-# 启动（任选一种）
-douzi              # 命令行
-open -a Douzi      # Launchpad / 应用文件夹
-```
-
-安装后，Douzi 会：
-- 常驻状态栏（⦿ 图标）
-- 自动管理 Node.js 服务
-- 支持 ⌘N 快速添加待办、⌘O 打开看板
-
-### 方式二：手动启动（适合浏览器使用）
-
-```bash
-# 1. 克隆仓库
-git clone https://github.com/seuwangcy/Douzi.git
-cd douzi
-
-# 2. 启动看板（零依赖）
-node server.mjs
-
-# 3. 浏览器访问
-open http://localhost:5000
-```
-
-### 用 Obsidian 打开
-
-```bash
-# 将 knowledge-base/ 添加到 Obsidian 作为 vault
-# 或使用 Foam 插件在 VS Code 中打开
-```
+**多步骤项目** → AI 自动识别归入 `projects/` → `[[双向链接]]` 关联子任务 → 一张图看懂项目全局
 
 ---
 
-
----
-
-## 🍎 macOS 菜单栏应用
-
-除了浏览器访问，Douzi 还提供了原生 macOS 菜单栏应用，常驻系统托盘，一键管理看板服务。
-
-### 功能
-
-| 菜单项 | 快捷键 | 作用 |
-|--------|--------|------|
-| ✨ 快速添加待办 | ⌘N | 弹出 SwiftUI 窗口，输入内容直接写入 Inbox |
-| 🌐 打开看板 | ⌘O | 自动启动服务（如未运行），浏览器打开 localhost:5000 |
-| 🧠 一键整理 Inbox | — | 调用 AI 自动分类 Inbox 中的待办 |
-| 服务状态 | — | 实时显示 Node.js 服务是否运行 |
-| 🔄 重启服务 | ⌘R | 终止并重新启动 `node server.mjs` |
-| 🛑 停止服务 | — | 终止 Node.js 进程 |
-| 退出 Douzi | ⌘Q | 停止服务并退出菜单栏应用 |
-
-### 编译运行
-
-```bash
-cd macos-tray
-swift build
-./.build/debug/DouziMenuBar
-```
-
-应用启动后会自动检测并启动 `node server.mjs`（如尚未运行），状态栏出现 `⦿` 图标，点击即可展开菜单。
-
-> 详细文档见 [docs/macos-menu-bar.md](docs/macos-menu-bar.md)
-## 📂 目录结构
+## 📁 目录结构
 
 ```
 douzi/
 ├── server.mjs              # 零依赖 Web 看板服务器
-├── ai-process.mjs          # AI 辅助整理脚本（支持 CLI + 模块导入）
+├── ai-process.mjs          # AI 辅助整理脚本（CLI + 模块导入）
+├── install.sh              # macOS 一键安装脚本
+├── update.sh              # 🆕 更新脚本（拉取最新 + 重新编译）
+├── uninstall.sh           # 🗑️ 卸载脚本（完整清理）
+├── macos-tray/             # 🍎 macOS 菜单栏应用（状态栏入口）
 ├── knowledge-base/
 │   └── gtd/
 │       ├── _README.md      # GTD 使用说明
 │       ├── _TEMPLATE.md    # 任务模板
 │       ├── inbox/          # 📥 收件箱 - 想法先扔这里
-│       ├── next_actions/   # 🎯 下一步行动 - 具体可执行任务
-│       ├── waiting_for/    # ⏳ 等待他人 - 依赖外部的事项
-│       ├── projects/       # 📋 项目 - 多步骤目标
-│       ├── done/           # ✅ 已完成 - 刚完成的任务
-│       ├── archived/       # 📦 已归档 - 长期保存的完成项
-│       ├── reference/      # 📚 知识参考 - 文献笔记、资料
-│       └── daily_review/   # 📝 每日回顾 - 日/周复盘
-├── macos-tray/            # 🍎 macOS 菜单栏应用
-│   ├── Package.swift
-│   └── Sources/DouziMenuBar/
-├── docs/                   # 📖 项目文档
+│       ├── next_actions/   # 🎯 下一步行动
+│       ├── waiting_for/    # ⏳ 等待他人
+│       ├── projects/       # 📋 多步骤项目
+│       ├── done/           # ✅ 刚完成
+│       ├── archived/       # 📦 已归档
+│       ├── reference/      # 📚 知识参考
+│       └── daily_review/   # 📝 每日回顾
+├── docs/                   # 📖 文档
+│   ├── gtd-workflow.md
+│   ├── ai-setup.md
+│   ├── obsidian-integration.md
+│   ├── macos-menu-bar.md
+│   ├── customization.md
+│   ├── maintenance.md         # 🔄 更新与卸载指南
+│   └── templates/          # 文档模板
 ├── LICENSE                 # MIT License
 └── .gitignore
-```
-
----
-
-## 💡 使用场景
-
-### 场景 1：通勤路上的灵感
-1. 手机上打开浏览器 → 访问 NAS 或电脑部署的看板地址
-2. 在 Inbox 栏点击「+」，输入想法
-3. 回到家后点击「✨ 一键整理」，AI 自动分类到对应目录
-
-### 场景 2：项目管理
-1. 在 `next_actions/` 中查看今日待办
-2. 关联到 `projects/` 中的大项目（使用双向链接）
-3. 完成后移动到 `done/`，周末批量归档
-
-### 场景 3：知识积累
-1. 在 `reference/` 中用 Markdown 记录技术笔记
-2. 用 `[[双向链接]]` 关联相关知识点
-3. Obsidian 中自动生成知识图谱
-
----
-
-## 🔧 进阶用法
-
-### 自定义看板服务器端口
-
-```bash
-# 修改 server.mjs 底部的 PORT 变量
-PORT=8080 node server.mjs
-```
-
-### 在 NAS/Docker 上部署
-
-```yaml
-# docker-compose.yml (可选)
-version: "3"
-services:
-  douzi:
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - ./knowledge-base:/app/knowledge-base
-      - ./server.mjs:/app/server.mjs
-      - ./ai-process.mjs:/app/ai-process.mjs
-    command: node server.mjs
-    ports:
-      - "5000:5000"
-```
-
-### AI 整理工作流
-
-**方式一：Web 看板一键触发**
-打开看板 → 点击右上角「✨ 一键整理」→ AI 自动处理 → 弹窗显示结果 → 页面自动刷新
-
-**方式二：命令行直接运行**
-```bash
-# 查看 inbox 中有多少未处理项
-ls knowledge-base/gtd/inbox/ | wc -l
-
-# 全部整理
-node ai-process.mjs
-
-# 只整理指定文件
-node ai-process.mjs --file 2026-04-29-新想法.md
-
-# 试运行（预览不实际移动）
-node ai-process.mjs --dry-run
-```
-
-**方式三：代码中导入使用**
-```javascript
-import { organizeInbox } from './ai-process.mjs';
-const { result } = await organizeInbox({ dryRun: false, baseDir: './knowledge-base/gtd' });
-console.log(result);
-```
-
-**方式四：定时自动整理**
-```bash
-# 加入 cron，每天 20:00 自动执行
-crontab -e
-0 20 * * * cd /path/to/douzi && node ai-process.mjs
 ```
 
 ---
@@ -308,6 +300,7 @@ crontab -e
 - [AI 辅助整理配置](docs/ai-setup.md)
 - [Obsidian / Foam 集成](docs/obsidian-integration.md)
 - [macOS 菜单栏应用](docs/macos-menu-bar.md)
+- [维护管理](docs/maintenance.md)
 - [自定义与扩展](docs/customization.md)
 
 ---
@@ -322,16 +315,13 @@ crontab -e
 4. Push 到分支 (`git push origin feature/amazing-feature`)
 5. 创建 Pull Request
 
----
-
 ## 📄 许可
 
 MIT License — 详见 [LICENSE](LICENSE)
-
----
 
 ## 🌟 致谢
 
 - David Allen — Getting Things Done 方法论
 - Obsidian — 双向链接知识库的标杆
 - Node.js — 零依赖轻量级服务器的基石
+- Google Gemini API — AI 整理能力

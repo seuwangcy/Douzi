@@ -20,3 +20,10 @@ node_modules/
 # macOS
 .AppleDouble
 .LSOverride
+
+# Coding Agent 配置
+.claude/
+.cursor/
+.windsorf/
+.roo/
+.codeium/
