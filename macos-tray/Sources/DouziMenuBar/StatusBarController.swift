@@ -12,6 +12,8 @@ final class StatusBarController {
     private let onQuit: () -> Void
 
     private var serviceStatusItem: NSMenuItem?
+    private var lightIcon: NSImage?
+    private var darkIcon: NSImage?
 
     init(
         onQuickAdd: @escaping () -> Void,
@@ -27,6 +29,24 @@ final class StatusBarController {
         self.onRestartServer = onRestartServer
         self.onStopServer = onStopServer
         self.onQuit = onQuit
+
+        loadIcons()
+    }
+
+    private func loadIcons() {
+        // Light mode icon (dark fill on transparent)
+        if let path = Bundle.module.path(forResource: "AppIcon_menubar", ofType: "png") {
+            lightIcon = NSImage(contentsOfFile: path)
+        }
+        // Dark mode icon (white fill on transparent)
+        if let path = Bundle.module.path(forResource: "AppIcon_menubar_dark", ofType: "png") {
+            darkIcon = NSImage(contentsOfFile: path)
+        }
+    }
+
+    private var currentIcon: NSImage? {
+        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDarkMode ? darkIcon : lightIcon
     }
 
     func setup() {
@@ -35,22 +55,32 @@ final class StatusBarController {
             return
         }
 
-        // Load custom icon from bundle
-        if let imgPath = Bundle.module.path(forResource: "AppIcon_menubar", ofType: "png"),
-           let image = NSImage(contentsOfFile: imgPath) {
-            btn.image = image
-        } else if #available(macOS 11.0, *) {
-            btn.image = NSImage(systemSymbolName: "circle.circle.fill",
-                                accessibilityDescription: "Douzi")
-            btn.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-        } else {
-            btn.title = "⦿"
-        }
-
+        btn.image = currentIcon ?? fallbackIcon
         btn.imageScaling = .scaleProportionallyDown
         btn.imagePosition = .imageOnly
 
         buildMenu()
+
+        // Observe appearance changes for automatic icon switching
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appearanceDidChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appearanceDidChange() {
+        statusItem.button?.image = currentIcon ?? fallbackIcon
+    }
+
+    private var fallbackIcon: NSImage? {
+        if #available(macOS 11.0, *) {
+            return NSImage(systemSymbolName: "circle.circle.fill",
+                           accessibilityDescription: "Douzi")
+        } else {
+            return nil
+        }
     }
 
     func updateServiceStatus(isRunning: Bool) {
