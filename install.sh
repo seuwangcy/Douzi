@@ -182,7 +182,15 @@ export DOUZI_NODE_PATH="$NODE_PATH"
 export DOUZI_AI_PATH="$AI_PATH"
 
 nohup "$EXEC" > /dev/null 2>&1 &
-echo "🚀  Douzi started! Look for the ⦿ icon in your menu bar."
+EXEC_PID=$!
+sleep 1
+
+# Verify the app actually started
+if ps -p $EXEC_PID > /dev/null 2>&1; then
+    echo "🚀  Douzi started! Look for the icon in your menu bar."
+else
+    echo "❌  Douzi failed to start. Check ~/.douzi-server.log for errors."
+fi
 CMDSCRIPT
 chmod +x "$BIN_DIR/douzi"
 

@@ -1,9 +1,11 @@
 import Cocoa
 
 // Attempt to acquire exclusive startup lock.
+// LockManager automatically cleans up stale locks on startup.
 let lockManager = LockManager.shared
+
 if !lockManager.acquire() {
-    // Another instance is starting or running - send activate and exit
+    // Another instance is running - bring it to front and exit
     DistributedNotificationCenter.default().postNotificationName(
         NSNotification.Name("com.douzi.activate"),
         object: nil,
@@ -12,7 +14,7 @@ if !lockManager.acquire() {
     exit(0)
 }
 
-// Verify no live Douzi is running by checking port 5000
+// Also check port 5000 to handle edge case where lock file survived but process died
 var addr = sockaddr_in()
 addr.sin_len = UInt8(MemoryLayout.size(ofValue: addr))
 addr.sin_family = sa_family_t(AF_INET)
@@ -27,19 +29,18 @@ if fd >= 0 {
         }
     } == 0
 
-    if connected && !lockManager.isLockHolderAlive() {
-        // Stale lock - lock holder is dead, clean up
-        lockManager.cleanupStaleLock()
-    } else if connected {
-        // Another Douzi running
-        DistributedNotificationCenter.default().postNotificationName(
-            NSNotification.Name("com.douzi.activate"),
-            object: nil,
-            deliverImmediately: true
-        )
-        close(fd)
-        lockManager.release()
-        exit(0)
+    if connected {
+        // Something on port 5000 - if it's not our lock holder, activate and exit
+        if !lockManager.isLockHolderAlive {
+            DistributedNotificationCenter.default().postNotificationName(
+                NSNotification.Name("com.douzi.activate"),
+                object: nil,
+                deliverImmediately: true
+            )
+            close(fd)
+            lockManager.release()
+            exit(0)
+        }
     }
     close(fd)
 }
@@ -47,5 +48,4 @@ if fd >= 0 {
 // No live Douzi running - proceed with startup
 AppRunner.shared.run()
 
-// App terminated - release lock
-lockManager.release()
+// App terminated - lock will be released via atexit handler

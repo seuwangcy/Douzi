@@ -13,7 +13,8 @@ final class AppRunner {
 
     /// Run the application. This blocks until the app terminates.
     func run() {
-        NSApp.delegate = delegate
-        NSApp.run()
+        let app = NSApplication.shared
+        app.delegate = delegate
+        app.run()
     }
 }
