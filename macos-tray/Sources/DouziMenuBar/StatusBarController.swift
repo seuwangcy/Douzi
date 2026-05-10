@@ -14,6 +14,7 @@ final class StatusBarController {
     private var serviceStatusItem: NSMenuItem?
     private var lightIcon: NSImage?
     private var darkIcon: NSImage?
+    private var appearanceObservation: NSKeyValueObservation?
 
     init(
         onQuickAdd: @escaping () -> Void,
@@ -44,8 +45,12 @@ final class StatusBarController {
         }
     }
 
+    /// Determine the correct icon based on the status bar button's actual appearance.
+    /// In fullscreen mode, macOS forces the menu bar to dark regardless of system theme,
+    /// so we must check the button's own effectiveAppearance instead of the app-level one.
     private var currentIcon: NSImage? {
-        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
+        let isDarkMode = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDarkMode ? darkIcon : lightIcon
     }
 
@@ -61,16 +66,17 @@ final class StatusBarController {
 
         buildMenu()
 
-        // Observe appearance changes for automatic icon switching
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appearanceDidChange),
-            name: NSApplication.didChangeScreenParametersNotification,
-            object: nil
-        )
+        // Use KVO on the status bar button's effectiveAppearance.
+        // This correctly detects fullscreen mode changes where macOS forces
+        // a dark menu bar, as well as normal system theme switches.
+        appearanceObservation = btn.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                self?.updateIcon()
+            }
+        }
     }
 
-    @objc private func appearanceDidChange() {
+    private func updateIcon() {
         statusItem.button?.image = currentIcon ?? fallbackIcon
     }
 
