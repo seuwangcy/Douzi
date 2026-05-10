@@ -87,13 +87,30 @@ if [ "$FROM_SOURCE" = true ]; then
     echo "    Cropped: ${CROP_W}x${CROP_H} → Content: ${CONTENT}x${CONTENT} → Canvas: ${CANVAS}x${CANVAS}"
     echo "    Margin: ${MARGIN}px (~10%), Corner radius: ${RADIUS}px"
 
+    TMPDIR_APP=$(mktemp -d)
+
+    # Step 1a: Crop
     magick "$SOURCE_ICON" \
         -crop ${CROP_W}x${CROP_H}+${CROP_LEFT}+${CROP_TOP} +repage \
-        -resize ${CONTENT}x${CONTENT}! \
-        \( -size ${CONTENT}x${CONTENT} xc:none -draw "roundrectangle 0,0 $((CONTENT-1)),$((CONTENT-1)) ${RADIUS},${RADIUS}" \) \
-        -compose DstIn -composite \
-        -gravity center -extent ${CANVAS}x${CANVAS} \
-        "$FINAL_ICON"
+        "$TMPDIR_APP/cropped.png"
+
+    # Step 1b: Resize to content area
+    magick "$TMPDIR_APP/cropped.png" -resize ${CONTENT}x${CONTENT}! "$TMPDIR_APP/resized.png"
+
+    # Step 1c: Create rounded rect mask
+    magick -size ${CONTENT}x${CONTENT} xc:none \
+        -draw "roundrectangle 0,0 $((CONTENT-1)),$((CONTENT-1)) ${RADIUS},${RADIUS}" \
+        "$TMPDIR_APP/mask.png"
+
+    # Step 1d: Apply mask
+    magick "$TMPDIR_APP/resized.png" "$TMPDIR_APP/mask.png" \
+        -compose DstIn -composite "$TMPDIR_APP/masked.png"
+
+    # Step 1e: Place on canvas with transparent margin
+    magick -size ${CANVAS}x${CANVAS} xc:none "$TMPDIR_APP/masked.png" \
+        -gravity center -composite "$FINAL_ICON"
+
+    rm -rf "$TMPDIR_APP"
 
     echo -e "${GREEN}✅  Generated: $FINAL_ICON${NC}"
 fi
