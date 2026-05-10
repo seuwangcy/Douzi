@@ -12,9 +12,6 @@ final class StatusBarController {
     private let onQuit: () -> Void
 
     private var serviceStatusItem: NSMenuItem?
-    private var lightIcon: NSImage?
-    private var darkIcon: NSImage?
-    private var appearanceObservation: NSKeyValueObservation?
 
     init(
         onQuickAdd: @escaping () -> Void,
@@ -30,54 +27,37 @@ final class StatusBarController {
         self.onRestartServer = onRestartServer
         self.onStopServer = onStopServer
         self.onQuit = onQuit
-
-        loadIcons()
     }
 
-    private func loadIcons() {
-        // Light mode icon (dark fill on transparent)
-        if let path = Bundle.module.path(forResource: "AppIcon_menubar", ofType: "png") {
-            lightIcon = NSImage(contentsOfFile: path)
+    /// Load the menu bar icon as a template image.
+    /// Template images consist of black + alpha only; macOS automatically
+    /// renders them in the correct color for light/dark mode and highlights.
+    private func loadTemplateIcon() -> NSImage? {
+        let menuBarIconSize = NSSize(width: 18, height: 18)
+        // Prefer @2x for Retina sharpness
+        if let path = Bundle.module.path(forResource: "AppIcon_menubar@2x", ofType: "png"),
+           let img = NSImage(contentsOfFile: path) {
+            img.size = menuBarIconSize
+            img.isTemplate = true
+            return img
         }
-        // Dark mode icon (white fill on transparent)
-        if let path = Bundle.module.path(forResource: "AppIcon_menubar_dark", ofType: "png") {
-            darkIcon = NSImage(contentsOfFile: path)
+        if let path = Bundle.module.path(forResource: "AppIcon_menubar", ofType: "png"),
+           let img = NSImage(contentsOfFile: path) {
+            img.size = menuBarIconSize
+            img.isTemplate = true
+            return img
         }
-    }
-
-    /// Determine the correct icon based on the status bar button's actual appearance.
-    /// In fullscreen mode, macOS forces the menu bar to dark regardless of system theme,
-    /// so we must check the button's own effectiveAppearance instead of the app-level one.
-    private var currentIcon: NSImage? {
-        let appearance = statusItem?.button?.effectiveAppearance ?? NSApp.effectiveAppearance
-        let isDarkMode = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        return isDarkMode ? darkIcon : lightIcon
+        return nil
     }
 
     func setup() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        guard let btn = statusItem.button else {
-            return
-        }
+        guard let btn = statusItem.button else { return }
 
-        btn.image = currentIcon ?? fallbackIcon
-        btn.imageScaling = .scaleProportionallyDown
+        btn.image = loadTemplateIcon() ?? fallbackIcon
         btn.imagePosition = .imageOnly
 
         buildMenu()
-
-        // Use KVO on the status bar button's effectiveAppearance.
-        // This correctly detects fullscreen mode changes where macOS forces
-        // a dark menu bar, as well as normal system theme switches.
-        appearanceObservation = btn.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
-            DispatchQueue.main.async {
-                self?.updateIcon()
-            }
-        }
-    }
-
-    private func updateIcon() {
-        statusItem.button?.image = currentIcon ?? fallbackIcon
     }
 
     private var fallbackIcon: NSImage? {

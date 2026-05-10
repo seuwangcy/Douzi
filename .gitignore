@@ -30,6 +30,7 @@ node_modules/
 
 # IDE 配置
 .vscode/
+.joycode/
 
 # 用户知识库（存储在 ~/.douzi/knowledge-base/）
 knowledge-base/

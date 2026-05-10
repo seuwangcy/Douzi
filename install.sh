@@ -226,7 +226,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleIconFile</key>
-    <string>AppIcon.icns</string>
+    <string>AppIcon</string>
     <key>LSBackgroundOnly</key>
     <true/>
     <key>LSUIElement</key>
